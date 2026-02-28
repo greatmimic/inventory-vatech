@@ -626,21 +626,33 @@
 
   @media (max-width: 520px) {
     .stock-table thead { display: none; }
-    .stock-table, .stock-table tbody, .stock-table tr, .stock-table td { display: block; width: 100%; }
+    .stock-table, .stock-table tbody, .stock-table tr { display: block; width: 100%; }
+    .stock-table td { display: inline; border: none; padding: 0; }
     .stock-table tr {
       padding: 10px 14px;
       border-bottom: 1px solid rgba(42,47,61,0.8);
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 4px;
     }
     .stock-table tr:hover { background: rgba(255,107,53,0.04); }
-    .stock-table td { padding: 0; border: none; }
-    .td-sap { width: 100%; font-size: 12px; }
-    .td-desc { width: calc(100% - 60px); font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .td-qty { width: 50px; text-align: right; font-size: 15px; }
-    .stock-filter-select { width: 100%; }
+    .td-sap {
+      display: inline !important;
+      font-size: 12px;
+    }
+    .td-qty {
+      display: inline !important;
+      font-size: 12px;
+      text-align: left;
+    }
+    .td-qty::before { content: ' ('; color: var(--muted); }
+    .td-qty::after  { content: ')'; color: var(--muted); }
+    .td-desc {
+      display: block !important;
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
   }
 
   /* ── EMPTY STATE ── */
@@ -746,8 +758,8 @@
           <thead>
             <tr>
               <th onclick="sortStock('sap_code')">SAP Code <span class="sort-arrow" id="sort-sap_code">↕</span></th>
+              <th onclick="sortStock('quantity')">Qty <span class="sort-arrow" id="sort-quantity">↕</span></th>
               <th onclick="sortStock('description')">Description <span class="sort-arrow" id="sort-description">↕</span></th>
-              <th onclick="sortStock('quantity')" style="text-align:right">Qty <span class="sort-arrow" id="sort-quantity">↕</span></th>
             </tr>
           </thead>
           <tbody id="stockTableBody"></tbody>
@@ -1077,8 +1089,8 @@ function renderStockTable() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="td-sap">${item.sap_code}</td>
-      <td class="td-desc">${item.description}</td>
-      <td class="td-qty ${qc}">${item.quantity}</td>`;
+      <td class="td-qty ${qc}">${item.quantity}</td>
+      <td class="td-desc">${item.description}</td>`;
     tbody.appendChild(tr);
   });
 }
