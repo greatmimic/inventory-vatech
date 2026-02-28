@@ -412,6 +412,218 @@
   }
   .admin-submit:hover { opacity: 0.85; }
 
+  /* ── STOCK LIST ── */
+  .stock-list-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .stock-filter {
+    flex: 1;
+    min-width: 160px;
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 8px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text);
+    outline: none;
+    -webkit-appearance: none;
+  }
+  .stock-filter:focus { border-color: var(--accent2); }
+
+  .stock-filter-select {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 8px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--muted);
+    outline: none;
+    cursor: pointer;
+    -webkit-appearance: none;
+  }
+  .stock-filter-select:focus { border-color: var(--accent2); }
+
+  .stock-summary {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+    padding: 4px 0;
+    width: 100%;
+  }
+
+  .stock-table-wrap {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    max-height: 420px;
+    overflow-y: auto;
+  }
+
+  .stock-table-wrap::-webkit-scrollbar { width: 6px; }
+  .stock-table-wrap::-webkit-scrollbar-track { background: var(--bg); }
+  .stock-table-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .stock-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  .stock-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #1e2333;
+  }
+
+  .stock-table th {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    text-transform: uppercase;
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+  }
+  .stock-table th:hover { color: var(--accent2); }
+  .stock-table th.sorted { color: var(--accent2); }
+  .sort-arrow { margin-left: 4px; opacity: 0.6; }
+
+  .stock-table td {
+    padding: 9px 14px;
+    border-bottom: 1px solid rgba(42,47,61,0.6);
+    vertical-align: middle;
+  }
+
+  .stock-table tr:last-child td { border-bottom: none; }
+  .stock-table tr:hover td { background: rgba(255,107,53,0.04); }
+
+  .stock-table .td-sap {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+
+  .stock-table .td-desc {
+    color: var(--text);
+    max-width: 340px;
+  }
+
+  .stock-table .td-qty {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .stock-table .td-qty.ok    { color: var(--success); }
+  .stock-table .td-qty.low   { color: var(--warn); }
+  .stock-table .td-qty.empty { color: var(--danger); }
+
+  .stock-loading {
+    text-align: center;
+    padding: 32px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* ── STOCK LIST ── */
+  .stock-list-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .stock-filter {
+    flex: 1;
+    min-width: 160px;
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 8px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text);
+    outline: none;
+    -webkit-appearance: none;
+  }
+  .stock-filter:focus { border-color: var(--accent2); }
+  .stock-filter-select {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 8px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--muted);
+    outline: none;
+    cursor: pointer;
+  }
+  .stock-summary {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+  }
+  .stock-table-wrap {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+  .stock-table-wrap::-webkit-scrollbar { width: 6px; }
+  .stock-table-wrap::-webkit-scrollbar-track { background: var(--bg); }
+  .stock-table-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .stock-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .stock-table thead { position: sticky; top: 0; z-index: 2; background: #1e2333; }
+  .stock-table th {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    text-transform: uppercase;
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+  }
+  .stock-table th:hover { color: var(--accent2); }
+  .stock-table th.sorted { color: var(--accent2); }
+  .sort-arrow { margin-left: 4px; opacity: 0.5; }
+  .stock-table td {
+    padding: 9px 14px;
+    border-bottom: 1px solid rgba(42,47,61,0.6);
+    vertical-align: middle;
+  }
+  .stock-table tr:last-child td { border-bottom: none; }
+  .stock-table tr:hover td { background: rgba(255,107,53,0.04); }
+  .td-sap { font-family: var(--mono); font-size: 11px; color: var(--accent); white-space: nowrap; }
+  .td-desc { color: var(--text); }
+  .td-qty { font-family: var(--mono); font-size: 13px; font-weight: 600; text-align: right; white-space: nowrap; }
+  .td-qty.ok    { color: var(--success); }
+  .td-qty.low   { color: var(--warn); }
+  .td-qty.empty { color: var(--danger); }
+  .stock-loading { text-align: center; padding: 32px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
   /* ── EMPTY STATE ── */
   .empty-state {
     text-align: center;
@@ -449,7 +661,9 @@
     <div class="admin-title">⬡ Admin Panel</div>
     <div class="admin-tabs">
       <button class="tab-btn active" onclick="switchTab('add-stock')">Add Stock</button>
+      <button class="tab-btn" onclick="switchTab('deduct')">Deduct</button>
       <button class="tab-btn" onclick="switchTab('new-item')">New Item</button>
+      <button class="tab-btn" onclick="switchTab('stock-list')">Stock List</button>
     </div>
 
     <!-- Tab: Add Stock -->
@@ -480,6 +694,46 @@
         <input class="form-input" id="newQty" type="number" min="0" placeholder="0">
       </div>
       <button class="admin-submit" onclick="adminNewItem()">CREATE ITEM</button>
+    </div>
+
+    <!-- Tab: Deduct (Admin) -->
+    <div class="tab-content" id="tab-deduct">
+      <div class="form-group">
+        <label class="form-label">SAP Code</label>
+        <input class="form-input" id="adminDeductCode" type="text" placeholder="e.g. A0000236" autocomplete="off" autocapitalize="characters">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Quantity to Deduct</label>
+        <input class="form-input" id="adminDeductQty" type="number" min="1" placeholder="e.g. 5">
+      </div>
+      <button class="admin-submit" style="background:var(--danger)" onclick="adminDeduct()">− DEDUCT FROM STOCK</button>
+    </div>
+
+    <!-- Tab: Stock List -->
+    <div class="tab-content" id="tab-stock-list">
+      <div class="stock-list-controls">
+        <input class="stock-filter" id="stockFilter" type="text" placeholder="Filter by SAP code or description..." oninput="renderStockTable()">
+        <select class="stock-filter-select" id="stockFilterStatus" onchange="renderStockTable()">
+          <option value="all">All items</option>
+          <option value="ok">In stock</option>
+          <option value="low">Low (≤3)</option>
+          <option value="empty">Out of stock</option>
+        </select>
+      </div>
+      <div class="stock-summary" id="stockSummary"></div>
+      <div class="stock-table-wrap">
+        <div class="stock-loading" id="stockLoading">Loading inventory...</div>
+        <table class="stock-table" id="stockTable" style="display:none">
+          <thead>
+            <tr>
+              <th onclick="sortStock('sap_code')">SAP Code <span class="sort-arrow" id="sort-sap_code">↕</span></th>
+              <th onclick="sortStock('description')">Description <span class="sort-arrow" id="sort-description">↕</span></th>
+              <th onclick="sortStock('quantity')" style="text-align:right">Qty <span class="sort-arrow" id="sort-quantity">↕</span></th>
+            </tr>
+          </thead>
+          <tbody id="stockTableBody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -699,12 +953,121 @@ function toggleAdmin() {
 }
 
 function switchTab(tabId) {
+  const tabIds = ['add-stock', 'deduct', 'new-item', 'stock-list'];
   document.querySelectorAll('.tab-btn').forEach((b, i) => {
-    b.classList.toggle('active', ['add-stock','new-item'][i] === tabId);
+    b.classList.toggle('active', tabIds[i] === tabId);
   });
   document.querySelectorAll('.tab-content').forEach(t => {
     t.classList.toggle('active', t.id === `tab-${tabId}`);
   });
+  if (tabId === 'stock-list') loadStockList();
+}
+
+// ── ADMIN DEDUCT ──────────────────────────────────────────────────────────────
+async function adminDeduct() {
+  const code = document.getElementById('adminDeductCode').value.trim().toUpperCase();
+  const qty  = parseInt(document.getElementById('adminDeductQty').value);
+  if (!code || !qty || qty <= 0) { showToast('Enter SAP code and quantity', 'error'); return; }
+  try {
+    const res  = await fetch(`${API}/api/items/${code}/deduct`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ quantity: qty })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.error || 'Error', 'error'); return; }
+    showToast(`✓ Deducted ${qty} from ${code} — now ${data.item.quantity} in stock`, 'success');
+    document.getElementById('adminDeductCode').value = '';
+    document.getElementById('adminDeductQty').value  = '';
+    const q = document.getElementById('searchInput').value.trim();
+    if (q) fetchItems(q);
+  } catch { showToast('Connection error', 'error'); }
+}
+
+// ── STOCK LIST ────────────────────────────────────────────────────────────────
+let allStock     = [];
+let stockSortKey = 'sap_code';
+let stockSortAsc = true;
+
+async function loadStockList() {
+  const loading = document.getElementById('stockLoading');
+  const table   = document.getElementById('stockTable');
+  loading.style.display = 'block';
+  table.style.display   = 'none';
+  try {
+    const res  = await fetch(`${API}/api/items`);
+    allStock   = await res.json();
+    loading.style.display = 'none';
+    table.style.display   = 'table';
+    renderStockTable();
+  } catch {
+    loading.textContent = 'Failed to load inventory.';
+  }
+}
+
+function renderStockTable() {
+  const filterText   = (document.getElementById('stockFilter').value || '').toLowerCase();
+  const filterStatus = document.getElementById('stockFilterStatus').value;
+
+  let items = allStock.filter(item => {
+    const matchText = !filterText ||
+      item.sap_code.toLowerCase().includes(filterText) ||
+      item.description.toLowerCase().includes(filterText);
+    const matchStatus =
+      filterStatus === 'all'   ? true :
+      filterStatus === 'ok'    ? item.quantity > 3 :
+      filterStatus === 'low'   ? (item.quantity > 0 && item.quantity <= 3) :
+      filterStatus === 'empty' ? item.quantity === 0 : true;
+    return matchText && matchStatus;
+  });
+
+  // Sort
+  items.sort((a, b) => {
+    let va = a[stockSortKey], vb = b[stockSortKey];
+    if (stockSortKey === 'quantity') { va = Number(va); vb = Number(vb); }
+    else { va = String(va).toLowerCase(); vb = String(vb).toLowerCase(); }
+    if (va < vb) return stockSortAsc ? -1 :  1;
+    if (va > vb) return stockSortAsc ?  1 : -1;
+    return 0;
+  });
+
+  // Update sort arrows
+  ['sap_code','description','quantity'].forEach(k => {
+    const el = document.getElementById(`sort-${k}`);
+    if (el) el.textContent = k === stockSortKey ? (stockSortAsc ? '↑' : '↓') : '↕';
+    const th = el ? el.parentElement : null;
+    if (th) th.classList.toggle('sorted', k === stockSortKey);
+  });
+
+  // Summary
+  const total  = allStock.length;
+  const empty  = allStock.filter(i => i.quantity === 0).length;
+  const low    = allStock.filter(i => i.quantity > 0 && i.quantity <= 3).length;
+  document.getElementById('stockSummary').textContent =
+    `${items.length} of ${total} items shown  ·  ${empty} out of stock  ·  ${low} low stock`;
+
+  // Rows
+  const tbody = document.getElementById('stockTableBody');
+  tbody.innerHTML = '';
+  if (items.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;padding:24px;color:var(--muted);font-family:var(--mono);font-size:12px">No items match filter</td></tr>`;
+    return;
+  }
+  items.forEach(item => {
+    const qc = item.quantity === 0 ? 'empty' : item.quantity <= 3 ? 'low' : 'ok';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="td-sap">${item.sap_code}</td>
+      <td class="td-desc">${item.description}</td>
+      <td class="td-qty ${qc}">${item.quantity}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function sortStock(key) {
+  if (stockSortKey === key) stockSortAsc = !stockSortAsc;
+  else { stockSortKey = key; stockSortAsc = true; }
+  renderStockTable();
 }
 
 async function adminAddStock() {
