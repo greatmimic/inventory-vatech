@@ -4,7 +4,6 @@ const path    = require('path');
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
-// ── Supabase client ───────────────────────────────────────────────────────────
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://zuoqqbwzvessxepukqrb.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_KEY || 'sb_publishable_gsEe31Aqu23tnpO9ysCLxA_Y_tKLBWJ';
 
@@ -28,7 +27,7 @@ async function db(method, endpoint, body) {
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ── GET all items (optionally filter by ?q=searchterm) ────────────────────────
+// ── GET all items ─────────────────────────────────────────────────────────────
 app.get('/api/items', async (req, res) => {
   try {
     const q = (req.query.q || '').trim();
@@ -64,7 +63,16 @@ app.post('/api/items/:code/deduct', async (req, res) => {
     if (!rows || rows.length === 0) return res.status(404).json({ error: 'Item not found' });
     const item = rows[0];
     if (item.quantity < qty) return res.status(400).json({ error: 'Insufficient stock', current: item.quantity });
+
     const updated = await db('PATCH', `inventory?sap_code=eq.${encodeURIComponent(req.params.code)}`, { quantity: item.quantity - qty });
+
+    // Log the usage
+    await db('POST', 'usage_log', {
+      sap_code:    item.sap_code,
+      description: item.description,
+      quantity:    qty
+    });
+
     res.json({ success: true, item: updated[0] });
   } catch (e) {
     console.error(e);
@@ -101,6 +109,36 @@ app.post('/api/items', async (req, res) => {
     res.json({ success: true, item: created[0] });
   } catch (e) {
     if (e?.error?.code === '23505') return res.status(400).json({ error: 'SAP code already exists' });
+    console.error(e);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// ── GET usage trends ──────────────────────────────────────────────────────────
+// ?days=7 (default 7, supports 7, 30, 90, 365, all)
+app.get('/api/trends', async (req, res) => {
+  try {
+    const days = req.query.days;
+    let endpoint = 'usage_log?select=sap_code,description,quantity,used_at&order=used_at.desc';
+    if (days && days !== 'all') {
+      const since = new Date(Date.now() - parseInt(days) * 24 * 60 * 60 * 1000).toISOString();
+      endpoint += `&used_at=gte.${encodeURIComponent(since)}`;
+    }
+    const logs = await db('GET', endpoint);
+
+    // Aggregate by sap_code
+    const map = {};
+    for (const row of logs) {
+      if (!map[row.sap_code]) {
+        map[row.sap_code] = { sap_code: row.sap_code, description: row.description, total_used: 0, times_used: 0 };
+      }
+      map[row.sap_code].total_used  += row.quantity;
+      map[row.sap_code].times_used  += 1;
+    }
+
+    const result = Object.values(map).sort((a, b) => b.total_used - a.total_used);
+    res.json(result);
+  } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Database error' });
   }
