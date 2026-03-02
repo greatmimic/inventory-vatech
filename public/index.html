@@ -37,6 +37,20 @@
   input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   input[type=number] { -moz-appearance: textfield; }
 
+  .type-badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  .type-badge.IOX { background: rgba(0,212,255,0.12); color: var(--accent); border: 1px solid rgba(0,212,255,0.3); }
+  .type-badge.EOX { background: rgba(255,107,53,0.12); color: var(--accent2); border: 1px solid rgba(255,107,53,0.3); }
+
   /* ── HEADER ── */
   header {
     background: var(--surface);
@@ -835,6 +849,14 @@
           onkeydown="if(event.key==='Enter')document.getElementById('newQty').focus()">
       </div>
       <div class="form-group">
+        <label class="form-label">Type</label>
+        <select class="form-input" id="newType">
+          <option value="">— Select type —</option>
+          <option value="IOX">IOX</option>
+          <option value="EOX">EOX</option>
+        </select>
+      </div>
+      <div class="form-group">
         <label class="form-label">Initial Quantity</label>
         <div class="admin-qty-wrap">
           <button class="qty-btn" type="button" onclick="changeAdminQty('newQty',-1)">−</button>
@@ -879,6 +901,11 @@
           <option value="low">Low (≤3)</option>
           <option value="empty">Out of stock</option>
         </select>
+        <select class="stock-filter-select" id="stockFilterType" onchange="renderStockTable()">
+          <option value="all">All types</option>
+          <option value="IOX">IOX</option>
+          <option value="EOX">EOX</option>
+        </select>
       </div>
       <div class="stock-summary" id="stockSummary"></div>
       <div class="stock-table-wrap">
@@ -888,6 +915,7 @@
             <tr>
               <th onclick="sortStock('sap_code')">SAP Code <span class="sort-arrow" id="sort-sap_code">↕</span></th>
               <th onclick="sortStock('quantity')">Qty <span class="sort-arrow" id="sort-quantity">↕</span></th>
+              <th onclick="sortStock('type')">Type <span class="sort-arrow" id="sort-type">↕</span></th>
               <th onclick="sortStock('description')">Description <span class="sort-arrow" id="sort-description">↕</span></th>
             </tr>
           </thead>
@@ -1034,7 +1062,7 @@ function renderResults(items, q) {
     card.innerHTML = `
       <div class="item-top">
         <div>
-          <div class="item-sap">${highlight(item.sap_code, q)}</div>
+          <div class="item-sap">${highlight(item.sap_code, q)}${item.type ? `<span class="type-badge ${item.type}">${item.type}</span>` : ''}</div>
           <div class="item-desc">${highlight(item.description, q)}</div>
         </div>
         <div style="text-align:right">
@@ -1186,7 +1214,7 @@ async function sapSearch(input, dropId) {
     return `<div class="sap-opt" data-idx="${idx}" data-code="${item.sap_code}"
       onmousedown="selectSapOption('${item.sap_code}','${escJs(item.description)}',${item.quantity},'${dropId}',event)">
       <span class="sap-opt-qty ${qc}">${item.quantity} in stock</span>
-      <div class="sap-opt-code">${item.sap_code}</div>
+      <div class="sap-opt-code">${item.sap_code}${item.type ? ` <span class="type-badge ${item.type}">${item.type}</span>` : ''}</div>
       <div class="sap-opt-desc">${item.description}</div>
     </div>`;
   }).join('');
@@ -1305,18 +1333,20 @@ async function adminDeduct() {
 async function adminNewItem() {
   const code = document.getElementById('newCode').value.trim().toUpperCase();
   const desc = document.getElementById('newDesc').value.trim();
+  const type = document.getElementById('newType').value.trim();
   const qty  = parseInt(document.getElementById('newQty').value) || 0;
   if (!code || !desc) { showToast('SAP code and description required', 'error'); return; }
   try {
     const res  = await fetch(`${API}/api/items`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sap_code: code, description: desc, quantity: qty })
+      body: JSON.stringify({ sap_code: code, description: desc, quantity: qty, type })
     });
     const data = await res.json();
     if (!res.ok) { showToast(data.error || 'Error', 'error'); return; }
     showToast(`✓ Created ${code}`, 'success');
     document.getElementById('newCode').value = '';
     document.getElementById('newDesc').value = '';
+    document.getElementById('newType').value = '';
     document.getElementById('newQty').value  = '';
     sapCache = [];
   } catch { showToast('Connection error', 'error'); }
@@ -1395,6 +1425,7 @@ async function loadStockList() {
 function renderStockTable() {
   const filterText   = (document.getElementById('stockFilter').value || '').toLowerCase();
   const filterStatus = document.getElementById('stockFilterStatus').value;
+  const filterType   = document.getElementById('stockFilterType').value;
 
   let items = allStock.filter(item => {
     const matchText = !filterText ||
@@ -1405,7 +1436,8 @@ function renderStockTable() {
       filterStatus === 'ok'    ? item.quantity > 3 :
       filterStatus === 'low'   ? (item.quantity > 0 && item.quantity <= 3) :
       filterStatus === 'empty' ? item.quantity === 0 : true;
-    return matchText && matchStatus;
+    const matchType = filterType === 'all' || item.type === filterType;
+    return matchText && matchStatus && matchType;
   });
 
   // Sort
@@ -1419,7 +1451,7 @@ function renderStockTable() {
   });
 
   // Update sort arrows
-  ['sap_code','description','quantity'].forEach(k => {
+  ['sap_code','description','quantity','type'].forEach(k => {
     const el = document.getElementById(`sort-${k}`);
     if (el) el.textContent = k === stockSortKey ? (stockSortAsc ? '↑' : '↓') : '↕';
     const th = el ? el.parentElement : null;
@@ -1446,6 +1478,7 @@ function renderStockTable() {
     tr.innerHTML = `
       <td class="td-sap">${item.sap_code}</td>
       <td class="td-qty ${qc}">${item.quantity}</td>
+      <td>${item.type ? `<span class="type-badge ${item.type}">${item.type}</span>` : ''}</td>
       <td class="td-desc">${item.description}</td>`;
     tbody.appendChild(tr);
   });
