@@ -31,9 +31,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/api/items', async (req, res) => {
   try {
     const q = (req.query.q || '').trim();
-    let endpoint = 'inventory?select=sap_code,description,quantity&order=sap_code.asc';
+    let endpoint = 'inventory?select=sap_code,description,quantity,type&order=sap_code.asc';
     if (q) {
-      endpoint = `inventory?select=sap_code,description,quantity&or=(sap_code.ilike.*${encodeURIComponent(q)}*,description.ilike.*${encodeURIComponent(q)}*)&order=sap_code.asc`;
+      endpoint = `inventory?select=sap_code,description,quantity,type&or=(sap_code.ilike.*${encodeURIComponent(q)}*,description.ilike.*${encodeURIComponent(q)}*)&order=sap_code.asc`;
     }
     const data = await db('GET', endpoint);
     res.json(data);
@@ -46,7 +46,7 @@ app.get('/api/items', async (req, res) => {
 // ── GET single item ───────────────────────────────────────────────────────────
 app.get('/api/items/:code', async (req, res) => {
   try {
-    const data = await db('GET', `inventory?sap_code=eq.${encodeURIComponent(req.params.code)}&select=sap_code,description,quantity`);
+    const data = await db('GET', `inventory?sap_code=eq.${encodeURIComponent(req.params.code)}&select=sap_code,description,quantity,type`);
     if (!data || data.length === 0) return res.status(404).json({ error: 'Item not found' });
     res.json(data[0]);
   } catch (e) {
@@ -59,20 +59,12 @@ app.post('/api/items/:code/deduct', async (req, res) => {
   const qty = parseInt(req.body.quantity);
   if (!qty || qty <= 0) return res.status(400).json({ error: 'Invalid quantity' });
   try {
-    const rows = await db('GET', `inventory?sap_code=eq.${encodeURIComponent(req.params.code)}&select=sap_code,description,quantity`);
+    const rows = await db('GET', `inventory?sap_code=eq.${encodeURIComponent(req.params.code)}&select=sap_code,description,quantity,type`);
     if (!rows || rows.length === 0) return res.status(404).json({ error: 'Item not found' });
     const item = rows[0];
     if (item.quantity < qty) return res.status(400).json({ error: 'Insufficient stock', current: item.quantity });
-
     const updated = await db('PATCH', `inventory?sap_code=eq.${encodeURIComponent(req.params.code)}`, { quantity: item.quantity - qty });
-
-    // Log the usage
-    await db('POST', 'usage_log', {
-      sap_code:    item.sap_code,
-      description: item.description,
-      quantity:    qty
-    });
-
+    await db('POST', 'usage_log', { sap_code: item.sap_code, description: item.description, quantity: qty });
     res.json({ success: true, item: updated[0] });
   } catch (e) {
     console.error(e);
@@ -85,7 +77,7 @@ app.post('/api/items/:code/add', async (req, res) => {
   const qty = parseInt(req.body.quantity);
   if (!qty || qty <= 0) return res.status(400).json({ error: 'Invalid quantity' });
   try {
-    const rows = await db('GET', `inventory?sap_code=eq.${encodeURIComponent(req.params.code)}&select=sap_code,description,quantity`);
+    const rows = await db('GET', `inventory?sap_code=eq.${encodeURIComponent(req.params.code)}&select=sap_code,description,quantity,type`);
     if (!rows || rows.length === 0) return res.status(404).json({ error: 'Item not found' });
     const item = rows[0];
     const updated = await db('PATCH', `inventory?sap_code=eq.${encodeURIComponent(req.params.code)}`, { quantity: item.quantity + qty });
@@ -98,13 +90,14 @@ app.post('/api/items/:code/add', async (req, res) => {
 
 // ── POST new item ─────────────────────────────────────────────────────────────
 app.post('/api/items', async (req, res) => {
-  const { sap_code, description, quantity } = req.body;
+  const { sap_code, description, quantity, type } = req.body;
   if (!sap_code || !description) return res.status(400).json({ error: 'sap_code and description required' });
   try {
     const created = await db('POST', 'inventory', {
       sap_code:    sap_code.trim().toUpperCase(),
       description: description.trim(),
-      quantity:    parseInt(quantity) || 0
+      quantity:    parseInt(quantity) || 0,
+      type:        (type || '').trim().toUpperCase() || null
     });
     res.json({ success: true, item: created[0] });
   } catch (e) {
@@ -115,7 +108,6 @@ app.post('/api/items', async (req, res) => {
 });
 
 // ── GET usage trends ──────────────────────────────────────────────────────────
-// ?days=7 (default 7, supports 7, 30, 90, 365, all)
 app.get('/api/trends', async (req, res) => {
   try {
     const days = req.query.days;
@@ -125,19 +117,13 @@ app.get('/api/trends', async (req, res) => {
       endpoint += `&used_at=gte.${encodeURIComponent(since)}`;
     }
     const logs = await db('GET', endpoint);
-
-    // Aggregate by sap_code
     const map = {};
     for (const row of logs) {
-      if (!map[row.sap_code]) {
-        map[row.sap_code] = { sap_code: row.sap_code, description: row.description, total_used: 0, times_used: 0 };
-      }
-      map[row.sap_code].total_used  += row.quantity;
-      map[row.sap_code].times_used  += 1;
+      if (!map[row.sap_code]) map[row.sap_code] = { sap_code: row.sap_code, description: row.description, total_used: 0, times_used: 0 };
+      map[row.sap_code].total_used += row.quantity;
+      map[row.sap_code].times_used += 1;
     }
-
-    const result = Object.values(map).sort((a, b) => b.total_used - a.total_used);
-    res.json(result);
+    res.json(Object.values(map).sort((a, b) => b.total_used - a.total_used));
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Database error' });
