@@ -1004,7 +1004,7 @@ function hideResults() {
 async function fetchItems(q) {
   try {
     const res  = await fetch(`${API}/api/items?q=${encodeURIComponent(q)}`);
-    const data = await res.json();
+    const data = (await res.json()).map(i => ({ ...i, quantity: parseInt(i.quantity) || 0 }));
     renderResults(data, q);
   } catch (e) {
     showToast('Connection error', 'error');
@@ -1170,7 +1170,7 @@ async function ensureSapCache() {
   if (sapCache.length) return;
   try {
     const res = await fetch(`${API}/api/items`);
-    sapCache  = await res.json();
+    sapCache  = (await res.json()).map(i => ({ ...i, quantity: parseInt(i.quantity) || 0 }));
   } catch {}
 }
 
@@ -1393,7 +1393,7 @@ async function loadStockList() {
   table.style.display   = 'none';
   try {
     const res  = await fetch(`${API}/api/items`);
-    allStock   = await res.json();
+    allStock   = (await res.json()).map(i => ({ ...i, quantity: parseInt(i.quantity) || 0 }));
     loading.style.display = 'none';
     table.style.display   = 'table';
     renderStockTable();
