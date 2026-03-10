@@ -46,7 +46,7 @@ app.get('/api/items', async (req, res) => {
 // ── GET single item ───────────────────────────────────────────────────────────
 app.get('/api/items/:code', async (req, res) => {
   try {
-    const data = await db('GET', `inventory?sap_code=eq.${encodeURIComponent(req.params.code)}&select=sap_code,description,quantity`);
+    const data = await db('GET', `inventory?sap_code=ilike.${encodeURIComponent(req.params.code)}&select=sap_code,description,quantity`);
     if (!data || data.length === 0) return res.status(404).json({ error: 'Item not found' });
     res.json(data[0]);
   } catch (e) {
@@ -59,11 +59,11 @@ app.post('/api/items/:code/deduct', async (req, res) => {
   const qty = parseInt(req.body.quantity);
   if (!qty || qty <= 0) return res.status(400).json({ error: 'Invalid quantity' });
   try {
-    const rows = await db('GET', `inventory?sap_code=eq.${encodeURIComponent(req.params.code)}&select=sap_code,description,quantity`);
+    const rows = await db('GET', `inventory?sap_code=ilike.${encodeURIComponent(req.params.code)}&select=sap_code,description,quantity`);
     if (!rows || rows.length === 0) return res.status(404).json({ error: 'Item not found' });
     const item = rows[0];
     if (item.quantity < qty) return res.status(400).json({ error: 'Insufficient stock', current: item.quantity });
-    const updated = await db('PATCH', `inventory?sap_code=eq.${encodeURIComponent(req.params.code)}`, { quantity: item.quantity - qty });
+    const updated = await db('PATCH', `inventory?sap_code=ilike.${encodeURIComponent(req.params.code)}`, { quantity: item.quantity - qty });
     await db('POST', 'usage_log', { sap_code: item.sap_code, description: item.description, quantity: qty });
     res.json({ success: true, item: updated[0] });
   } catch (e) {
@@ -77,10 +77,10 @@ app.post('/api/items/:code/add', async (req, res) => {
   const qty = parseInt(req.body.quantity);
   if (!qty || qty <= 0) return res.status(400).json({ error: 'Invalid quantity' });
   try {
-    const rows = await db('GET', `inventory?sap_code=eq.${encodeURIComponent(req.params.code)}&select=sap_code,description,quantity`);
+    const rows = await db('GET', `inventory?sap_code=ilike.${encodeURIComponent(req.params.code)}&select=sap_code,description,quantity`);
     if (!rows || rows.length === 0) return res.status(404).json({ error: 'Item not found' });
     const item = rows[0];
-    const updated = await db('PATCH', `inventory?sap_code=eq.${encodeURIComponent(req.params.code)}`, { quantity: item.quantity + qty });
+    const updated = await db('PATCH', `inventory?sap_code=ilike.${encodeURIComponent(req.params.code)}`, { quantity: item.quantity + qty });
     res.json({ success: true, item: updated[0] });
   } catch (e) {
     console.error(e);
