@@ -14,10 +14,11 @@ async function db(method, endpoint, body) {
       'apikey':        SUPABASE_KEY,
       'Authorization': `Bearer ${SUPABASE_KEY}`,
       'Content-Type':  'application/json',
-      'Prefer':        'return=representation'
+      ...(method !== 'DELETE' ? { 'Prefer': 'return=representation' } : {})
     },
     body: body ? JSON.stringify(body) : undefined
   });
+  if (method === 'DELETE') return null;
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
   if (!res.ok) throw { status: res.status, error: data };
@@ -64,8 +65,9 @@ app.post('/api/items/:code/deduct', async (req, res) => {
     const rows = await db('GET', `inventory?sap_code=eq.${encodeURIComponent(code)}&select=sap_code,description,quantity`);
     if (!rows || rows.length === 0) return res.status(404).json({ error: 'Item not found' });
     const item = rows[0];
-    if (item.quantity < qty) return res.status(400).json({ error: 'Insufficient stock', current: item.quantity });
-    const updated = await db('PATCH', `inventory?sap_code=eq.${encodeURIComponent(code)}`, { quantity: item.quantity - qty });
+    const currentQty = parseInt(item.quantity);
+    if (currentQty < qty) return res.status(400).json({ error: 'Insufficient stock', current: currentQty });
+    const updated = await db('PATCH', `inventory?sap_code=eq.${encodeURIComponent(code)}`, { quantity: currentQty - qty });
     await db('POST', 'usage_log', { sap_code: item.sap_code, description: item.description, quantity: qty });
     res.json({ success: true, item: updated[0] });
   } catch (e) {
@@ -82,9 +84,22 @@ app.post('/api/items/:code/add', async (req, res) => {
   try {
     const rows = await db('GET', `inventory?sap_code=eq.${encodeURIComponent(code)}&select=sap_code,description,quantity`);
     if (!rows || rows.length === 0) return res.status(404).json({ error: 'Item not found' });
-    const item = rows[0];
-    const updated = await db('PATCH', `inventory?sap_code=eq.${encodeURIComponent(code)}`, { quantity: item.quantity + qty });
+    const item   = rows[0];
+    const newQty = parseInt(item.quantity) + qty;
+    const updated = await db('PATCH', `inventory?sap_code=eq.${encodeURIComponent(code)}`, { quantity: newQty });
     res.json({ success: true, item: updated[0] });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// ── DELETE usage_log entries by sap_code ──────────────────────────────────────
+app.delete('/api/trends/:code', async (req, res) => {
+  const code = req.params.code.toUpperCase();
+  try {
+    await db('DELETE', `usage_log?sap_code=eq.${encodeURIComponent(code)}`);
+    res.json({ success: true });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Database error' });
@@ -127,6 +142,30 @@ app.get('/api/trends', async (req, res) => {
       map[row.sap_code].times_used += 1;
     }
     res.json(Object.values(map).sort((a, b) => b.total_used - a.total_used));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// ── DELETE usage log entries for a SAP code ───────────────────────────────────
+app.delete('/api/trends/:code', async (req, res) => {
+  const code = req.params.code.toUpperCase();
+  try {
+    await db('DELETE', `usage_log?sap_code=eq.${encodeURIComponent(code)}`);
+    res.json({ success: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// ── DELETE usage log entries for a SAP code ───────────────────────────────────
+app.delete('/api/trends/:code', async (req, res) => {
+  const code = req.params.code.toUpperCase();
+  try {
+    await db('DELETE', `usage_log?sap_code=eq.${encodeURIComponent(code)}`);
+    res.json({ success: true });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Database error' });
