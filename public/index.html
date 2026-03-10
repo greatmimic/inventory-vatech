@@ -1056,7 +1056,9 @@ function renderResults(items, q) {
             <button class="qty-btn" onclick="changeQty('${item.sap_code}', -1, event)">−</button>
             <input class="qty-number" id="qty-${item.sap_code}" type="number" value="1" min="1" max="${item.quantity}"
               onclick="event.stopPropagation()"
-              onkeydown="event.stopPropagation(); if(event.key==='Enter') confirmDeduct('${item.sap_code}', event)">
+              onkeydown="event.stopPropagation(); if(event.key==='Enter'){ event.preventDefault(); confirmDeduct('${item.sap_code}', event); }"
+              onkeyup="event.stopPropagation()"
+              onkeypress="event.stopPropagation()">
             <button class="qty-btn" onclick="changeQty('${item.sap_code}', 1, event)">+</button>
           </div>
           <button class="confirm-btn" onclick="confirmDeduct('${item.sap_code}', event)"
@@ -1223,7 +1225,11 @@ function selectSapOption(code, desc, qty, dropId, e) {
 
   drop.classList.remove('open');
   drop.innerHTML = '';
-  setTimeout(() => document.getElementById(qtyId).focus(), 0);
+  setTimeout(() => {
+    const qtyEl = document.getElementById(qtyId);
+    qtyEl.focus();
+    qtyEl.select();
+  }, 50);
 }
 
 function sapKeyNav(e, dropId, nextInputId) {
