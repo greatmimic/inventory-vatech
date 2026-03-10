@@ -1054,7 +1054,9 @@ function renderResults(items, q) {
         <div class="deduct-row">
           <div class="qty-input-wrap">
             <button class="qty-btn" onclick="changeQty('${item.sap_code}', -1, event)">−</button>
-            <input class="qty-number" id="qty-${item.sap_code}" type="number" value="1" min="1" max="${item.quantity}">
+            <input class="qty-number" id="qty-${item.sap_code}" type="number" value="1" min="1" max="${item.quantity}"
+              onclick="event.stopPropagation()"
+              onkeydown="event.stopPropagation(); if(event.key==='Enter') confirmDeduct('${item.sap_code}', event)">
             <button class="qty-btn" onclick="changeQty('${item.sap_code}', 1, event)">+</button>
           </div>
           <button class="confirm-btn" onclick="confirmDeduct('${item.sap_code}', event)"
@@ -1264,7 +1266,7 @@ document.addEventListener('click', e => {
 function changeAdminQty(inputId, delta) {
   const input = document.getElementById(inputId);
   let val = parseInt(input.value) || 0;
-  val = Math.max(0, val + delta);
+  val = Math.max(1, val + delta);
   input.value = val;
 }
 
@@ -1272,6 +1274,8 @@ async function adminAddStock() {
   const code = document.getElementById('adminCode').value.trim().toUpperCase();
   const qty  = parseInt(document.getElementById('adminQty').value);
   if (!code || !qty || qty <= 0) { showToast('Enter SAP code and quantity', 'error'); return; }
+  const btn = document.querySelector('#tab-add-stock .admin-submit');
+  btn.disabled = true; btn.textContent = 'PROCESSING...';
   try {
     const res  = await fetch(`${API}/api/items/${code}/add`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1280,19 +1284,22 @@ async function adminAddStock() {
     const data = await res.json();
     if (!res.ok) { showToast(data.error || 'Error', 'error'); return; }
     showToast(`✓ Added ${qty} to ${code} — now ${data.item.quantity} in stock`, 'success');
-    document.getElementById('adminCode').value       = '';
-    document.getElementById('adminQty').value        = '';
+    document.getElementById('adminCode').value           = '';
+    document.getElementById('adminQty').value            = '';
     document.getElementById('sapSelected-add').innerHTML = '';
-    sapCache = []; // invalidate cache so next search gets fresh qtys
+    sapCache = [];
     const q = document.getElementById('searchInput').value.trim();
     if (q) fetchItems(q);
   } catch { showToast('Connection error', 'error'); }
+  finally { btn.disabled = false; btn.textContent = '+ ADD TO STOCK'; }
 }
 
 async function adminDeduct() {
   const code = document.getElementById('adminDeductCode').value.trim().toUpperCase();
   const qty  = parseInt(document.getElementById('adminDeductQty').value);
   if (!code || !qty || qty <= 0) { showToast('Enter SAP code and quantity', 'error'); return; }
+  const btn = document.querySelector('#tab-deduct .admin-submit');
+  btn.disabled = true; btn.textContent = 'PROCESSING...';
   try {
     const res  = await fetch(`${API}/api/items/${code}/deduct`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1301,13 +1308,14 @@ async function adminDeduct() {
     const data = await res.json();
     if (!res.ok) { showToast(data.error || 'Error', 'error'); return; }
     showToast(`✓ Deducted ${qty} from ${code} — now ${data.item.quantity} in stock`, 'success');
-    document.getElementById('adminDeductCode').value       = '';
-    document.getElementById('adminDeductQty').value        = '';
-    document.getElementById('sapSelected-deduct').innerHTML = '';
+    document.getElementById('adminDeductCode').value           = '';
+    document.getElementById('adminDeductQty').value            = '';
+    document.getElementById('sapSelected-deduct').innerHTML    = '';
     sapCache = [];
     const q = document.getElementById('searchInput').value.trim();
     if (q) fetchItems(q);
   } catch { showToast('Connection error', 'error'); }
+  finally { btn.disabled = false; btn.textContent = '− DEDUCT FROM STOCK'; }
 }
 
 async function adminNewItem() {
