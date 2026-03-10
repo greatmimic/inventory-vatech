@@ -925,6 +925,7 @@
               <th>Description</th>
               <th style="text-align:right">Units Used</th>
               <th style="text-align:right">Times</th>
+              <th></th>
             </tr>
           </thead>
           <tbody id="trendsTableBody">
@@ -1216,6 +1217,7 @@ function selectSapOption(code, desc, qty, dropId, e) {
   const qtyId   = tabId === 'add' ? 'adminQty' : 'adminDeductQty';
 
   document.getElementById(inputId).value = code;
+  document.getElementById(qtyId).value   = '';  // always clear qty on new selection
   const qc = qty === 0 ? 'color:var(--danger)' : qty <= 3 ? 'color:var(--warn)' : 'color:var(--success)';
   document.getElementById(selId).innerHTML = `✓ ${code} — ${desc} &nbsp;<span style="${qc}">(${qty} in stock)</span>`;
 
@@ -1227,8 +1229,8 @@ function selectSapOption(code, desc, qty, dropId, e) {
   drop.innerHTML = '';
   setTimeout(() => {
     const qtyEl = document.getElementById(qtyId);
+    qtyEl.value = '';
     qtyEl.focus();
-    qtyEl.select();
   }, 50);
 }
 
@@ -1360,7 +1362,7 @@ async function loadTrends() {
     loading.style.display = 'none';
 
     if (!data.length) {
-      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--muted);font-family:var(--mono);font-size:12px">No usage recorded in this period</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--muted);font-family:var(--mono);font-size:12px">No usage recorded in this period</td></tr>`;
       summary.textContent = '';
       return;
     }
@@ -1385,14 +1387,27 @@ async function loadTrends() {
           </div>
         </td>
         <td style="text-align:right;font-family:var(--mono);font-size:13px;font-weight:600;color:var(--accent2);white-space:nowrap">${row.total_used}</td>
-        <td style="text-align:right;font-family:var(--mono);font-size:12px;color:var(--muted);white-space:nowrap">${row.times_used}×</td>`;
+        <td style="text-align:right;font-family:var(--mono);font-size:12px;color:var(--muted);white-space:nowrap">${row.times_used}×</td>
+        <td style="text-align:right;white-space:nowrap">
+          <button onclick="deleteTrendEntry('${row.sap_code}')" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;cursor:pointer;font-size:11px;font-family:var(--mono)" title="Remove all log entries for this item">✕</button>
+        </td>`;
       tbody.appendChild(tr);
     });
 
   } catch {
     loading.style.display = 'none';
-    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--danger);font-family:var(--mono);font-size:12px">Failed to load trends</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--danger);font-family:var(--mono);font-size:12px">Failed to load trends</td></tr>`;
   }
+}
+
+async function deleteTrendEntry(code) {
+  if (!confirm(`Remove all usage log entries for ${code}? This cannot be undone.`)) return;
+  try {
+    const res = await fetch(`${API}/api/trends/${encodeURIComponent(code)}`, { method: 'DELETE' });
+    if (!res.ok) { showToast('Failed to delete', 'error'); return; }
+    showToast(`✓ Removed log entries for ${code}`, 'success');
+    loadTrends();
+  } catch { showToast('Connection error', 'error'); }
 }
 
 // ── TOAST ────────────────────────────────────────────────────────────────────
