@@ -612,6 +612,25 @@
     color: var(--muted);
   }
 
+  .trends-range-wrap { margin-bottom: 14px; }
+  .trends-presets { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .preset-btn {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;
+    padding: 5px 12px; background: transparent; border: 1px solid var(--border);
+    color: var(--muted); border-radius: 4px; cursor: pointer; transition: all 0.15s;
+  }
+  .preset-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+  .preset-btn.active { border-color: var(--accent2); color: var(--accent2); background: rgba(255,107,53,0.08); }
+  .trends-date-range { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+  .date-field-wrap { display: flex; flex-direction: column; }
+  .date-sep { font-family: var(--mono); font-size: 14px; color: var(--muted); padding-bottom: 10px; }
+  .date-input {
+    font-family: var(--mono); font-size: 13px; padding: 8px 12px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
+    color: var(--text); outline: none; cursor: pointer; -webkit-appearance: none; color-scheme: dark;
+  }
+  .date-input:focus { border-color: var(--accent2); }
+
   /* ── STOCK LIST ── */
   .stock-list-controls {
     display: flex;
@@ -906,14 +925,26 @@
 
     <!-- Tab: Trends -->
     <div class="tab-content" id="tab-trends">
-      <div class="stock-list-controls">
-        <select class="stock-filter-select" id="trendsRange" onchange="loadTrends()" style="flex:1;min-width:140px">
-          <option value="7">Last 7 days</option>
-          <option value="30">Last 30 days</option>
-          <option value="90">Last 90 days</option>
-          <option value="365">Last year</option>
-          <option value="all">All time</option>
-        </select>
+      <div class="trends-range-wrap">
+        <div class="trends-presets">
+          <button class="preset-btn active" onclick="setPreset(this,7)">7D</button>
+          <button class="preset-btn" onclick="setPreset(this,30)">30D</button>
+          <button class="preset-btn" onclick="setPreset(this,90)">90D</button>
+          <button class="preset-btn" onclick="setPreset(this,365)">1Y</button>
+          <button class="preset-btn" onclick="setPreset(this,'all')">ALL</button>
+        </div>
+        <div class="trends-date-range">
+          <div class="date-field-wrap">
+            <label class="form-label" style="margin-bottom:4px">From</label>
+            <input type="date" class="date-input" id="trendsFrom" onchange="onDateRangeChange()">
+          </div>
+          <div class="date-sep">→</div>
+          <div class="date-field-wrap">
+            <label class="form-label" style="margin-bottom:4px">To</label>
+            <input type="date" class="date-input" id="trendsTo" onchange="onDateRangeChange()">
+          </div>
+          <button class="admin-submit" style="margin-top:18px;height:40px;padding:0 16px;width:auto" onclick="loadTrends()">Apply</button>
+        </div>
       </div>
       <div class="stock-summary" id="trendsSummary"></div>
       <div class="stock-table-wrap">
@@ -929,7 +960,7 @@
             </tr>
           </thead>
           <tbody id="trendsTableBody">
-            <tr><td colspan="4" style="text-align:center;padding:24px;color:var(--muted);font-family:var(--mono);font-size:12px">Select a time frame to load trends</td></tr>
+            <tr><td colspan="5" style="text-align:center;padding:24px;color:var(--muted);font-family:var(--mono);font-size:12px">Select a date range to load trends</td></tr>
           </tbody>
         </table>
       </div>
@@ -937,7 +968,7 @@
   </div>
 
   <!-- SEARCH -->
-  <div class="search-section">
+  <div class="search-section" id="searchSection">
     <span class="search-label">Search by SAP Code or Description</span>
     <div class="search-wrap">
       <input id="searchInput" type="text" placeholder="Type SAP code or part name..."
@@ -1149,10 +1180,16 @@ async function confirmDeduct(code, e) {
 
 // ── ADMIN ────────────────────────────────────────────────────────────────────
 function toggleAdmin() {
-  const panel = document.getElementById('adminPanel');
-  const btn   = document.getElementById('adminToggle');
-  const open  = panel.classList.toggle('open');
+  const panel  = document.getElementById('adminPanel');
+  const btn    = document.getElementById('adminToggle');
+  const search = document.getElementById('searchSection');
+  const results = document.getElementById('resultsSection');
+  const empty  = document.getElementById('emptyState');
+  const open   = panel.classList.toggle('open');
   btn.classList.toggle('active', open);
+  search.style.display  = open ? 'none' : '';
+  if (open) { results.style.display = 'none'; empty.style.display = 'none'; }
+  else       { empty.style.display = 'block'; }
 }
 
 function switchTab(tabId) {
@@ -1164,7 +1201,16 @@ function switchTab(tabId) {
     t.classList.toggle('active', t.id === `tab-${tabId}`);
   });
   if (tabId === 'stock-list') loadStockList();
-  if (tabId === 'trends')     loadTrends();
+  if (tabId === 'trends') {
+    // Set default to last 7 days if dates not yet set
+    if (!document.getElementById('trendsFrom').value) {
+      const today = new Date();
+      const from  = new Date(today); from.setDate(from.getDate() - 7);
+      document.getElementById('trendsTo').value   = today.toISOString().split('T')[0];
+      document.getElementById('trendsFrom').value = from.toISOString().split('T')[0];
+    }
+    loadTrends();
+  }
 }
 
 // ── SAP SEARCH (shared by Add Stock + Deduct tabs) ────────────────────────────
@@ -1311,12 +1357,7 @@ async function adminDeduct() {
   try {
     const res  = await fetch(`${API}/api/items/${code}/deduct`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quantity: qty })
-    });
-    const data = await res.json();
-    if (!res.ok) { showToast(data.error || 'Error', 'error'); return; }
-    showToast(`✓ Deducted ${qty} from ${code} — now ${data.item.quantity} in stock`, 'success');
-    document.getElementById('adminDeductCode').value           = '';
+      body: JSON.stringify({ quantity: qty, source: 'admin' })           = '';
     document.getElementById('adminDeductQty').value            = '';
     document.getElementById('sapSelected-deduct').innerHTML    = '';
     sapCache = [];
@@ -1347,18 +1388,48 @@ async function adminNewItem() {
     sapCache = [];
   } catch { showToast('Connection error', 'error'); }
 }
+// ── TRENDS ────────────────────────────────────────────────────────────────────
+function setPreset(btn, value) {
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const today = new Date();
+  const toStr = today.toISOString().split('T')[0];
+  document.getElementById('trendsTo').value = toStr;
+  if (value === 'all') {
+    document.getElementById('trendsFrom').value = '2000-01-01';
+  } else {
+    const from = new Date(today);
+    from.setDate(from.getDate() - parseInt(value));
+    document.getElementById('trendsFrom').value = from.toISOString().split('T')[0];
+  }
+  loadTrends();
+}
+
+function onDateRangeChange() {
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+}
+
 async function loadTrends() {
-  const days    = document.getElementById('trendsRange').value;
+  const from    = document.getElementById('trendsFrom').value;
+  const to      = document.getElementById('trendsTo').value;
   const loading = document.getElementById('trendsLoading');
   const tbody   = document.getElementById('trendsTableBody');
   const summary = document.getElementById('trendsSummary');
+
+  if (!from || !to) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--muted);font-family:var(--mono);font-size:12px">Select a date range to load trends</td></tr>`;
+    summary.textContent = '';
+    return;
+  }
 
   loading.style.display = 'block';
   tbody.innerHTML = '';
 
   try {
-    const res  = await fetch(`${API}/api/trends?days=${days}`);
-    const data = await res.json();
+    const fromISO = new Date(from).toISOString();
+    const toISO   = new Date(to + 'T23:59:59').toISOString();
+    const res     = await fetch(`${API}/api/trends?from=${encodeURIComponent(fromISO)}&to=${encodeURIComponent(toISO)}`);
+    const data    = await res.json();
     loading.style.display = 'none';
 
     if (!data.length) {
@@ -1369,11 +1440,9 @@ async function loadTrends() {
 
     const totalUnits = data.reduce((s, r) => s + r.total_used, 0);
     const totalTxns  = data.reduce((s, r) => s + r.times_used, 0);
-    const label = days === 'all' ? 'all time' : `last ${days} day${days === '1' ? '' : 's'}`;
-    summary.textContent = `${data.length} parts used · ${totalUnits} total units · ${totalTxns} transactions · ${label}`;
+    summary.textContent = `${data.length} parts used · ${totalUnits} total units · ${totalTxns} transactions · ${from} → ${to}`;
 
     const maxQty = data[0].total_used;
-
     data.forEach((row, i) => {
       const pct = Math.round((row.total_used / maxQty) * 100);
       const tr  = document.createElement('tr');
