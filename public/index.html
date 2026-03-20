@@ -929,7 +929,7 @@
       <div class="stock-summary" id="stockSummary"></div>
       <div class="stock-table-wrap">
         <div class="stock-loading" id="stockLoading">Loading inventory...</div>
-        <table class="stock-table" id="stockTable" style="display:none">
+        <table class="stock-table" id="stockTable">
           <thead>
             <tr>
               <th onclick="sortStock('sap_code')">SAP Code <span class="sort-arrow" id="sort-sap_code">↕</span></th>
@@ -1227,7 +1227,7 @@ function switchTab(tabId) {
   document.querySelectorAll('.tab-content').forEach(t => {
     t.classList.toggle('active', t.id === `tab-${tabId}`);
   });
-  if (tabId === 'stock-list') loadStockList();
+  if (tabId === 'stock-list') { allStock = []; loadStockList(); }
   if (tabId === 'trends') {
     // Set default to last 7 days if dates not yet set
     if (!document.getElementById('trendsFrom').value) {
@@ -1520,15 +1520,17 @@ async function loadStockList() {
   const loading = document.getElementById('stockLoading');
   const table   = document.getElementById('stockTable');
   loading.style.display = 'block';
+  loading.textContent   = 'Loading inventory...';
   table.style.display   = 'none';
   try {
     const res  = await fetch(`${API}/api/items`);
-    allStock   = (await res.json()).map(i => ({ ...i, quantity: parseInt(i.quantity) || 0 }));
+    const json = await res.json();
+    allStock   = json.map(i => ({ ...i, quantity: parseInt(i.quantity) || 0 }));
     loading.style.display = 'none';
     table.style.display   = 'table';
     renderStockTable();
-  } catch {
-    loading.textContent = 'Failed to load inventory.';
+  } catch (e) {
+    loading.textContent = 'Failed to load inventory. ' + e.message;
   }
 }
 
@@ -1584,7 +1586,7 @@ function renderStockTable() {
   }
   items.forEach(item => {
     const qc   = item.quantity === 0 ? 'empty' : item.quantity <= 3 ? 'low' : 'ok';
-    const type = (item.type || '').toUpperCase();
+    const type = (item.type || '').toString().trim().toUpperCase();
     const tr   = document.createElement('tr');
     tr.innerHTML = `
       <td class="td-sap">${item.sap_code}</td>
