@@ -712,6 +712,18 @@
   .td-qty.ok    { color: var(--success); }
   .td-qty.low   { color: var(--warn); }
   .td-qty.empty { color: var(--danger); }
+  .type-badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    padding: 2px 6px;
+    border-radius: 3px;
+    vertical-align: middle;
+  }
+  .type-badge.IOX { background: rgba(0,212,255,0.12); color: var(--accent); border: 1px solid rgba(0,212,255,0.3); }
+  .type-badge.EOX { background: rgba(255,107,53,0.12); color: var(--accent2); border: 1px solid rgba(255,107,53,0.3); }
   .stock-loading { text-align: center; padding: 32px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
 
   @media (max-width: 520px) {
@@ -745,6 +757,8 @@
     }
     #trendsTable thead th:nth-child(4) { display: none; }
     #trendsTable td:nth-child(4) { display: none; }
+    #stockTable thead th:nth-child(4) { display: none; }
+    #stockTable td:nth-child(4) { display: none; }
   }
 
   .trend-bar-wrap {
@@ -906,6 +920,11 @@
           <option value="low">Low (≤3)</option>
           <option value="empty">Out of stock</option>
         </select>
+        <select class="stock-filter-select" id="stockFilterType" onchange="renderStockTable()">
+          <option value="all">All types</option>
+          <option value="IOX">IOX</option>
+          <option value="EOX">EOX</option>
+        </select>
       </div>
       <div class="stock-summary" id="stockSummary"></div>
       <div class="stock-table-wrap">
@@ -914,6 +933,7 @@
           <thead>
             <tr>
               <th onclick="sortStock('sap_code')">SAP Code <span class="sort-arrow" id="sort-sap_code">↕</span></th>
+              <th onclick="sortStock('type')">Type <span class="sort-arrow" id="sort-type">↕</span></th>
               <th onclick="sortStock('quantity')">Qty <span class="sort-arrow" id="sort-quantity">↕</span></th>
               <th onclick="sortStock('description')">Description <span class="sort-arrow" id="sort-description">↕</span></th>
             </tr>
@@ -1515,6 +1535,7 @@ async function loadStockList() {
 function renderStockTable() {
   const filterText   = (document.getElementById('stockFilter').value || '').toLowerCase();
   const filterStatus = document.getElementById('stockFilterStatus').value;
+  const filterType   = document.getElementById('stockFilterType').value;
 
   let items = allStock.filter(item => {
     const matchText = !filterText ||
@@ -1525,12 +1546,13 @@ function renderStockTable() {
       filterStatus === 'ok'    ? item.quantity > 3 :
       filterStatus === 'low'   ? (item.quantity > 0 && item.quantity <= 3) :
       filterStatus === 'empty' ? item.quantity === 0 : true;
-    return matchText && matchStatus;
+    const matchType = filterType === 'all' || (item.type || '').toUpperCase() === filterType;
+    return matchText && matchStatus && matchType;
   });
 
   // Sort
   items.sort((a, b) => {
-    let va = a[stockSortKey], vb = b[stockSortKey];
+    let va = a[stockSortKey] ?? '', vb = b[stockSortKey] ?? '';
     if (stockSortKey === 'quantity') { va = Number(va); vb = Number(vb); }
     else { va = String(va).toLowerCase(); vb = String(vb).toLowerCase(); }
     if (va < vb) return stockSortAsc ? -1 :  1;
@@ -1539,7 +1561,7 @@ function renderStockTable() {
   });
 
   // Update sort arrows
-  ['sap_code','description','quantity'].forEach(k => {
+  ['sap_code','type','description','quantity'].forEach(k => {
     const el = document.getElementById(`sort-${k}`);
     if (el) el.textContent = k === stockSortKey ? (stockSortAsc ? '↑' : '↓') : '↕';
     const th = el ? el.parentElement : null;
@@ -1561,10 +1583,12 @@ function renderStockTable() {
     return;
   }
   items.forEach(item => {
-    const qc = item.quantity === 0 ? 'empty' : item.quantity <= 3 ? 'low' : 'ok';
-    const tr = document.createElement('tr');
+    const qc   = item.quantity === 0 ? 'empty' : item.quantity <= 3 ? 'low' : 'ok';
+    const type = (item.type || '').toUpperCase();
+    const tr   = document.createElement('tr');
     tr.innerHTML = `
       <td class="td-sap">${item.sap_code}</td>
+      <td>${type ? `<span class="type-badge ${type}">${type}</span>` : '<span style="color:var(--muted);font-size:11px">—</span>'}</td>
       <td class="td-qty ${qc}">${item.quantity}</td>
       <td class="td-desc">${item.description}</td>`;
     tbody.appendChild(tr);
