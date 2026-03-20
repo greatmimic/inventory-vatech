@@ -1180,16 +1180,23 @@ async function confirmDeduct(code, e) {
 
 // ── ADMIN ────────────────────────────────────────────────────────────────────
 function toggleAdmin() {
-  const panel  = document.getElementById('adminPanel');
-  const btn    = document.getElementById('adminToggle');
-  const search = document.getElementById('searchSection');
+  const panel   = document.getElementById('adminPanel');
+  const btn     = document.getElementById('adminToggle');
+  const search  = document.getElementById('searchSection');
   const results = document.getElementById('resultsSection');
-  const empty  = document.getElementById('emptyState');
-  const open   = panel.classList.toggle('open');
+  const empty   = document.getElementById('emptyState');
+  const open    = panel.classList.toggle('open');
   btn.classList.toggle('active', open);
-  search.style.display  = open ? 'none' : '';
-  if (open) { results.style.display = 'none'; empty.style.display = 'none'; }
-  else       { empty.style.display = 'block'; }
+  if (open) {
+    search.style.display  = 'none';
+    results.style.display = 'none';
+    empty.style.display   = 'none';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } else {
+    search.style.display  = '';
+    results.style.display = 'none';
+    empty.style.display   = 'block';
+  }
 }
 
 function switchTab(tabId) {
@@ -1357,7 +1364,12 @@ async function adminDeduct() {
   try {
     const res  = await fetch(`${API}/api/items/${code}/deduct`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quantity: qty, source: 'admin' })           = '';
+      body: JSON.stringify({ quantity: qty, source: 'admin' })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.error || 'Error', 'error'); return; }
+    showToast(`✓ Deducted ${qty} from ${code} — now ${data.item.quantity} in stock`, 'success');
+    document.getElementById('adminDeductCode').value           = '';
     document.getElementById('adminDeductQty').value            = '';
     document.getElementById('sapSelected-deduct').innerHTML    = '';
     sapCache = [];
