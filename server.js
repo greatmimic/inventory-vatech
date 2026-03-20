@@ -56,19 +56,23 @@ app.get('/api/items/:code', async (req, res) => {
   }
 });
 
-// ── POST deduct ───────────────────────────────────────────────────────────────
+// ── POST deduct (user) — logs to usage_log ────────────────────────────────────
 app.post('/api/items/:code/deduct', async (req, res) => {
-  const qty  = parseInt(req.body.quantity);
-  const code = req.params.code.toUpperCase();
+  const qty    = parseInt(req.body.quantity);
+  const code   = req.params.code.toUpperCase();
+  const source = req.body.source || 'user'; // 'user' | 'admin'
   if (!qty || qty <= 0) return res.status(400).json({ error: 'Invalid quantity' });
   try {
     const rows = await db('GET', `inventory?sap_code=eq.${encodeURIComponent(code)}&select=sap_code,description,quantity`);
     if (!rows || rows.length === 0) return res.status(404).json({ error: 'Item not found' });
-    const item = rows[0];
+    const item       = rows[0];
     const currentQty = parseInt(item.quantity);
     if (currentQty < qty) return res.status(400).json({ error: 'Insufficient stock', current: currentQty });
     const updated = await db('PATCH', `inventory?sap_code=eq.${encodeURIComponent(code)}`, { quantity: currentQty - qty });
-    await db('POST', 'usage_log', { sap_code: item.sap_code, description: item.description, quantity: qty });
+    // Only log if deduction came from a regular user, not admin
+    if (source === 'user') {
+      await db('POST', 'usage_log', { sap_code: item.sap_code, description: item.description, quantity: qty });
+    }
     res.json({ success: true, item: updated[0] });
   } catch (e) {
     console.error(e);
@@ -88,18 +92,6 @@ app.post('/api/items/:code/add', async (req, res) => {
     const newQty = parseInt(item.quantity) + qty;
     const updated = await db('PATCH', `inventory?sap_code=eq.${encodeURIComponent(code)}`, { quantity: newQty });
     res.json({ success: true, item: updated[0] });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Database error' });
-  }
-});
-
-// ── DELETE usage_log entries by sap_code ──────────────────────────────────────
-app.delete('/api/trends/:code', async (req, res) => {
-  const code = req.params.code.toUpperCase();
-  try {
-    await db('DELETE', `usage_log?sap_code=eq.${encodeURIComponent(code)}`);
-    res.json({ success: true });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Database error' });
@@ -128,32 +120,18 @@ app.post('/api/items', async (req, res) => {
 // ── GET usage trends ──────────────────────────────────────────────────────────
 app.get('/api/trends', async (req, res) => {
   try {
-    const days = req.query.days;
+    const { from, to } = req.query;
     let endpoint = 'usage_log?select=sap_code,description,quantity,used_at&order=used_at.desc';
-    if (days && days !== 'all') {
-      const since = new Date(Date.now() - parseInt(days) * 24 * 60 * 60 * 1000).toISOString();
-      endpoint += `&used_at=gte.${encodeURIComponent(since)}`;
-    }
+    if (from) endpoint += `&used_at=gte.${encodeURIComponent(from)}`;
+    if (to)   endpoint += `&used_at=lte.${encodeURIComponent(to)}`;
     const logs = await db('GET', endpoint);
-    const map = {};
+    const map  = {};
     for (const row of logs) {
       if (!map[row.sap_code]) map[row.sap_code] = { sap_code: row.sap_code, description: row.description, total_used: 0, times_used: 0 };
-      map[row.sap_code].total_used += row.quantity;
+      map[row.sap_code].total_used += parseInt(row.quantity);
       map[row.sap_code].times_used += 1;
     }
     res.json(Object.values(map).sort((a, b) => b.total_used - a.total_used));
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Database error' });
-  }
-});
-
-// ── DELETE usage log entries for a SAP code ───────────────────────────────────
-app.delete('/api/trends/:code', async (req, res) => {
-  const code = req.params.code.toUpperCase();
-  try {
-    await db('DELETE', `usage_log?sap_code=eq.${encodeURIComponent(code)}`);
-    res.json({ success: true });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Database error' });
