@@ -9,8 +9,8 @@ inventory-app/
 ├── server.js          ← Node.js backend (API + file server)
 ├── package.json
 ├── render.yaml        ← Render.com deployment config
-├── data/
-│   └── inventory.csv  ← The database (human-readable, editable)
+├── data/ //on external db
+│   
 └── public/
     └── index.html     ← Frontend (vanilla JS, works on any device)
 ```
