@@ -8,10 +8,9 @@ Internal inventory tracking — search by SAP code, deduct usage, manage stock.
 inventory-app/
 ├── server.js          ← Node.js backend (API + file server)
 ├── package.json
-├── render.yaml        ← Render.com deployment config
-├── data/ //on external db
+├── render.yaml        ← Render.com 
 │   
 └── public/
-    └── index.html     ← Frontend (vanilla JS, works on any device)
+    └── index.html    
 ```
 
