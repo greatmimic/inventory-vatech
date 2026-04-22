@@ -31,10 +31,18 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ── GET all items ─────────────────────────────────────────────────────────────
 app.get('/api/items', async (req, res) => {
   try {
-    const q = (req.query.q || '').trim();
-    let endpoint = 'inventory?select=sap_code,description,quantity,type&order=sap_code.asc';
+    const q    = (req.query.q || '').trim();
+    const base = 'inventory?select=sap_code,description,quantity,type&order=sap_code.asc';
+    let endpoint = base;
     if (q) {
-      endpoint = `inventory?select=sap_code,description,quantity,type&or=(sap_code.ilike.*${encodeURIComponent(q)}*,description.ilike.*${encodeURIComponent(q)}*)&order=sap_code.asc`;
+      // If query contains any digit, treat as SAP code search only
+      const hasDigit = /\d/.test(q);
+      if (hasDigit) {
+        endpoint = `${base.replace('&order','')}&sap_code=ilike.*${encodeURIComponent(q)}*&order=sap_code.asc`;
+      } else {
+        // Pure text — search description only
+        endpoint = `inventory?select=sap_code,description,quantity,type&description=ilike.*${encodeURIComponent(q)}*&order=sap_code.asc`;
+      }
     }
     const data = await db('GET', endpoint);
     res.json(data);
