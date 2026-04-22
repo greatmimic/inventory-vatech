@@ -152,6 +152,47 @@ app.get('/api/trends', async (req, res) => {
   }
 });
 
+// ── GET usage log (for Excel Power Query) ────────────────────────────────────
+// Returns aggregated usage: one row per SAP code, with total used and current stock
+// Optional filters: ?from=2026-01-01&to=2026-04-22
+app.get('/api/usage', async (req, res) => {
+  try {
+    const { from, to } = req.query;
+    let endpoint = 'usage_log?select=sap_code,description,quantity,used_at&order=sap_code.asc';
+    if (from) endpoint += `&used_at=gte.${encodeURIComponent(new Date(from).toISOString())}`;
+    if (to)   endpoint += `&used_at=lte.${encodeURIComponent(new Date(to + 'T23:59:59').toISOString())}`;
+    const logs = await db('GET', endpoint);
+
+    // Aggregate by SAP code
+    const map = {};
+    for (const row of logs) {
+      if (!map[row.sap_code]) map[row.sap_code] = {
+        sap_code:     row.sap_code,
+        description:  row.description,
+        total_used:   0,
+        times_used:   0,
+        current_stock: null
+      };
+      map[row.sap_code].total_used  += parseInt(row.quantity);
+      map[row.sap_code].times_used  += 1;
+    }
+
+    // Attach current stock
+    const codes = Object.keys(map);
+    if (codes.length > 0) {
+      const stockData = await db('GET', `inventory?select=sap_code,quantity&sap_code=in.(${codes.map(c => `"${c}"`).join(',')})`);
+      for (const s of stockData) {
+        if (map[s.sap_code]) map[s.sap_code].current_stock = parseInt(s.quantity);
+      }
+    }
+
+    res.json(Object.values(map).sort((a, b) => b.total_used - a.total_used));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
 // ── DELETE usage log entries for a SAP code ───────────────────────────────────
 app.delete('/api/trends/:code', async (req, res) => {
   const code = req.params.code.toUpperCase();
