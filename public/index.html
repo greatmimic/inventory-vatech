@@ -654,6 +654,21 @@
     color: var(--text); outline: none; cursor: pointer; -webkit-appearance: none; color-scheme: dark;
   }
   .date-input:focus { border-color: var(--accent2); }
+  .download-btn {
+    height: 40px;
+    padding: 0 14px;
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: 5px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .download-btn:hover { background: rgba(0,212,255,0.1); }
 
   /* ── STOCK LIST ── */
   .stock-list-controls {
@@ -988,6 +1003,8 @@
             <input type="date" class="date-input" id="trendsTo" onchange="onDateRangeChange()">
           </div>
           <button class="admin-submit" style="margin-top:18px;height:40px;padding:0 16px;width:auto" onclick="loadTrends()">Apply</button>
+          <button class="download-btn" style="margin-top:18px" onclick="downloadTrends('csv')" title="Download CSV">⬇ CSV</button>
+          <button class="download-btn" style="margin-top:18px" onclick="downloadTrends('xlsx')" title="Download Excel">⬇ Excel</button>
         </div>
       </div>
       <div class="stock-summary" id="trendsSummary"></div>
@@ -1000,6 +1017,7 @@
               <th>Description</th>
               <th style="text-align:right">Units Used</th>
               <th style="text-align:right">Times</th>
+              <th style="text-align:right">Stock</th>
               <th></th>
             </tr>
           </thead>
@@ -1491,6 +1509,7 @@ async function loadTrends() {
     const res     = await fetch(`${API}/api/trends?from=${encodeURIComponent(fromISO)}&to=${encodeURIComponent(toISO)}`);
     const data    = await res.json();
     loading.style.display = 'none';
+    lastTrendsData = data;
 
     if (!data.length) {
       tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--muted);font-family:var(--mono);font-size:12px">No usage recorded in this period</td></tr>`;
@@ -1505,6 +1524,8 @@ async function loadTrends() {
     const maxQty = data[0].total_used;
     data.forEach((row, i) => {
       const pct = Math.round((row.total_used / maxQty) * 100);
+      const stock = row.current_stock ?? '—';
+      const stockClass = row.current_stock === null ? '' : row.current_stock === 0 ? 'color:var(--danger)' : row.current_stock <= 3 ? 'color:var(--warn)' : 'color:var(--success)';
       const tr  = document.createElement('tr');
       tr.innerHTML = `
         <td class="td-sap">${row.sap_code}</td>
@@ -1517,6 +1538,7 @@ async function loadTrends() {
         </td>
         <td style="text-align:right;font-family:var(--mono);font-size:13px;font-weight:600;color:var(--accent2);white-space:nowrap">${row.total_used}</td>
         <td style="text-align:right;font-family:var(--mono);font-size:12px;color:var(--muted);white-space:nowrap">${row.times_used}×</td>
+        <td style="text-align:right;font-family:var(--mono);font-size:13px;font-weight:600;white-space:nowrap;${stockClass}">${stock}</td>
         <td style="text-align:right;white-space:nowrap">
           <button onclick="deleteTrendEntry('${row.sap_code}')" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;cursor:pointer;font-size:11px;font-family:var(--mono)" title="Remove all log entries for this item">✕</button>
         </td>`;
@@ -1629,6 +1651,53 @@ function sortStock(key) {
   if (stockSortKey === key) stockSortAsc = !stockSortAsc;
   else { stockSortKey = key; stockSortAsc = true; }
   renderStockTable();
+}
+
+// ── EXPORT ────────────────────────────────────────────────────────────────────
+let lastTrendsData = [];
+
+function downloadTrends(format) {
+  if (!lastTrendsData.length) { showToast('Load trends data first', 'error'); return; }
+  const from  = document.getElementById('trendsFrom').value || 'all';
+  const to    = document.getElementById('trendsTo').value   || 'time';
+  const fname = `usage_${from}_to_${to}`;
+
+  if (format === 'csv') {
+    const rows = [
+      ['SAP Code', 'Description', 'Units Used', 'Times Used', 'Current Stock'],
+      ...lastTrendsData.map(r => [
+        r.sap_code,
+        `"${r.description.replace(/"/g, '""')}"`,
+        r.total_used,
+        r.times_used,
+        r.current_stock ?? ''
+      ])
+    ];
+    const csv  = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    triggerDownload(blob, `${fname}.csv`);
+  } else {
+    const rows = lastTrendsData.map(r => `<tr>
+      <td>${r.sap_code}</td><td>${r.description}</td>
+      <td>${r.total_used}</td><td>${r.times_used}</td>
+      <td>${r.current_stock ?? ''}</td></tr>`).join('');
+    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="UTF-8"></head><body><table>
+      <thead><tr><th>SAP Code</th><th>Description</th><th>Units Used</th><th>Times Used</th><th>Current Stock</th></tr></thead>
+      <tbody>${rows}</tbody></table></body></html>`;
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    triggerDownload(blob, `${fname}.xls`);
+  }
+}
+
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+  showToast(`✓ Downloaded ${filename}`, 'success');
 }
 
 // ── TOAST ────────────────────────────────────────────────────────────────────
