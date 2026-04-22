@@ -242,15 +242,13 @@
   }
   .deduct-panel.open { display: block; }
 
-  .deduct-stock-info {
+  .deduct-stock-row {
     display: flex;
+    justify-content: space-between;
     align-items: center;
-    gap: 10px;
-    margin-bottom: 12px;
-    padding: 8px 12px;
-    background: var(--bg);
-    border-radius: 5px;
-    border: 1px solid var(--border);
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
   }
   .deduct-stock-label {
     font-family: var(--mono);
@@ -263,7 +261,6 @@
     font-family: var(--mono);
     font-size: 18px;
     font-weight: 600;
-    margin-left: auto;
   }
   .deduct-stock-val.ok    { color: var(--success); }
   .deduct-stock-val.low   { color: var(--warn); }
@@ -1130,10 +1127,6 @@ function renderResults(items, q) {
         </div>
       </div>
       <div class="deduct-panel" id="panel-${item.sap_code}">
-        <div class="deduct-stock-info">
-          <span class="deduct-stock-label">CURRENT STOCK</span>
-          <span class="deduct-stock-val ${qtyClass}" id="stock-${item.sap_code}">${item.quantity}</span>
-        </div>
         <div class="deduct-row">
           <div class="qty-input-wrap">
             <button class="qty-btn" onclick="changeQty('${item.sap_code}', -1, event)">−</button>
@@ -1148,6 +1141,10 @@ function renderResults(items, q) {
             ${item.quantity === 0 ? 'disabled' : ''}>
             ${item.quantity === 0 ? 'OUT OF STOCK' : 'CONFIRM USE'}
           </button>
+        </div>
+        <div class="deduct-stock-row">
+          <span class="deduct-stock-label">STOCK REMAINING</span>
+          <span class="deduct-stock-val ${qtyClass}" id="stock-${item.sap_code}">${item.quantity}</span>
         </div>
       </div>
     `;
