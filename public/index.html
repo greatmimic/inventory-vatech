@@ -242,6 +242,33 @@
   }
   .deduct-panel.open { display: block; }
 
+  .deduct-stock-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background: var(--bg);
+    border-radius: 5px;
+    border: 1px solid var(--border);
+  }
+  .deduct-stock-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  .deduct-stock-val {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 600;
+    margin-left: auto;
+  }
+  .deduct-stock-val.ok    { color: var(--success); }
+  .deduct-stock-val.low   { color: var(--warn); }
+  .deduct-stock-val.empty { color: var(--danger); }
+
   .deduct-row {
     display: flex;
     gap: 10px;
@@ -1103,6 +1130,10 @@ function renderResults(items, q) {
         </div>
       </div>
       <div class="deduct-panel" id="panel-${item.sap_code}">
+        <div class="deduct-stock-info">
+          <span class="deduct-stock-label">CURRENT STOCK</span>
+          <span class="deduct-stock-val ${qtyClass}" id="stock-${item.sap_code}">${item.quantity}</span>
+        </div>
         <div class="deduct-row">
           <div class="qty-input-wrap">
             <button class="qty-btn" onclick="changeQty('${item.sap_code}', -1, event)">−</button>
