@@ -133,9 +133,17 @@ app.get('/api/trends', async (req, res) => {
     const logs = await db('GET', endpoint);
     const map  = {};
     for (const row of logs) {
-      if (!map[row.sap_code]) map[row.sap_code] = { sap_code: row.sap_code, description: row.description, total_used: 0, times_used: 0 };
+      if (!map[row.sap_code]) map[row.sap_code] = { sap_code: row.sap_code, description: row.description, total_used: 0, times_used: 0, current_stock: null };
       map[row.sap_code].total_used += parseInt(row.quantity);
       map[row.sap_code].times_used += 1;
+    }
+    // Fetch current stock for all sap codes in results
+    const codes = Object.keys(map);
+    if (codes.length > 0) {
+      const stockData = await db('GET', `inventory?select=sap_code,quantity&sap_code=in.(${codes.map(c => `"${c}"`).join(',')})`);
+      for (const s of stockData) {
+        if (map[s.sap_code]) map[s.sap_code].current_stock = parseInt(s.quantity);
+      }
     }
     res.json(Object.values(map).sort((a, b) => b.total_used - a.total_used));
   } catch (e) {
