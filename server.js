@@ -1,11 +1,13 @@
 const express = require('express');
 const path    = require('path');
+const session = require('express-session');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://zuoqqbwzvessxepukqrb.supabase.co';
-const SUPABASE_KEY = process.env.SUPABASE_KEY || 'sb_publishable_gsEe31Aqu23tnpO9ysCLxA_Y_tKLBWJ';
+const SUPABASE_URL    = process.env.SUPABASE_URL    || 'https://zuoqqbwzvessxepukqrb.supabase.co';
+const SUPABASE_KEY    = process.env.SUPABASE_KEY    || 'sb_publishable_gsEe31Aqu23tnpO9ysCLxA_Y_tKLBWJ';
+const SESSION_SECRET  = process.env.SESSION_SECRET  || 'vatech-inventory-dev-secret';
 
 async function db(method, endpoint, body) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${endpoint}`, {
@@ -26,7 +28,47 @@ async function db(method, endpoint, body) {
 }
 
 app.use(express.json());
+app.use(session({
+  secret: SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: { httpOnly: true, maxAge: 8 * 60 * 60 * 1000 } // 8 hours
+}));
+
+const OPEN_PATHS = ['/login', '/login.html', '/api/login'];
+app.use((req, res, next) => {
+  if (OPEN_PATHS.includes(req.path)) return next();
+  if (req.session?.user) return next();
+  if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Unauthorized' });
+  return res.redirect('/login');
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ── AUTH ──────────────────────────────────────────────────────────────────────
+app.post('/api/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  try {
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    if (!r.ok) return res.status(401).json({ error: 'Invalid email or password' });
+    const data = await r.json();
+    req.session.user = { email: data.user.email, id: data.user.id };
+    res.json({ success: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+app.post('/api/logout', (req, res) => {
+  req.session.destroy();
+  res.json({ success: true });
+});
 
 // ── GET all items ─────────────────────────────────────────────────────────────
 app.get('/api/items', async (req, res) => {

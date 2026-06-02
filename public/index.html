@@ -855,6 +855,7 @@
     <div class="live-dot"></div>
     <span class="live-label">LIVE</span>
     <button class="admin-btn" id="adminToggle" onclick="toggleAdmin()">ADMIN</button>
+    <button class="admin-btn" onclick="handleLogout()" style="color:var(--muted)">LOGOUT</button>
   </div>
 </header>
 
@@ -964,6 +965,8 @@
           <option value="IOX">IOX</option>
           <option value="EOX">EOX</option>
         </select>
+        <button class="download-btn" onclick="downloadStockList('csv')" title="Download CSV">⬇ CSV</button>
+        <button class="download-btn" onclick="downloadStockList('xlsx')" title="Download Excel">⬇ Excel</button>
       </div>
       <div class="stock-summary" id="stockSummary"></div>
       <div class="stock-table-wrap">
@@ -1654,6 +1657,68 @@ function sortStock(key) {
 }
 
 // ── EXPORT ────────────────────────────────────────────────────────────────────
+function getFilteredStock() {
+  const filterText   = (document.getElementById('stockFilter').value || '').toLowerCase();
+  const filterStatus = document.getElementById('stockFilterStatus').value;
+  const filterType   = document.getElementById('stockFilterType').value;
+
+  let items = allStock.filter(item => {
+    const matchText = !filterText ||
+      item.sap_code.toLowerCase().includes(filterText) ||
+      item.description.toLowerCase().includes(filterText);
+    const matchStatus =
+      filterStatus === 'all'   ? true :
+      filterStatus === 'ok'    ? item.quantity > 3 :
+      filterStatus === 'low'   ? (item.quantity > 0 && item.quantity <= 3) :
+      filterStatus === 'empty' ? item.quantity === 0 : true;
+    const matchType = filterType === 'all' || (item.type || '').toUpperCase() === filterType;
+    return matchText && matchStatus && matchType;
+  });
+
+  items.sort((a, b) => {
+    let va = a[stockSortKey] ?? '', vb = b[stockSortKey] ?? '';
+    if (stockSortKey === 'quantity') { va = Number(va); vb = Number(vb); }
+    else { va = String(va).toLowerCase(); vb = String(vb).toLowerCase(); }
+    if (va < vb) return stockSortAsc ? -1 :  1;
+    if (va > vb) return stockSortAsc ?  1 : -1;
+    return 0;
+  });
+
+  return items;
+}
+
+function downloadStockList(format) {
+  if (!allStock.length) { showToast('Load stock list first', 'error'); return; }
+  const items = getFilteredStock();
+  const fname = 'stock_list';
+
+  if (format === 'csv') {
+    const rows = [
+      ['SAP Code', 'Type', 'Quantity', 'Description'],
+      ...items.map(r => [
+        r.sap_code,
+        r.type || '',
+        r.quantity,
+        `"${r.description.replace(/"/g, '""')}"`
+      ])
+    ];
+    const csv  = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    triggerDownload(blob, `${fname}.csv`);
+  } else {
+    const rows = items.map(r => `<tr>
+      <td>${r.sap_code}</td><td>${r.type || ''}</td>
+      <td>${r.quantity}</td><td>${r.description}</td></tr>`).join('');
+    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="UTF-8"></head><body><table>
+      <thead><tr><th>SAP Code</th><th>Type</th><th>Quantity</th><th>Description</th></tr></thead>
+      <tbody>${rows}</tbody></table></body></html>`;
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    triggerDownload(blob, `${fname}.xls`);
+  }
+}
+
 let lastTrendsData = [];
 
 function downloadTrends(format) {
