@@ -119,7 +119,7 @@ app.post('/api/items/:code/deduct', async (req, res) => {
     const updated = await db('PATCH', `inventory?sap_code=eq.${encodeURIComponent(code)}`, { quantity: currentQty - qty });
     // Only log if deduction came from a regular user, not admin
     if (source === 'user') {
-      await db('POST', 'usage_log', { sap_code: item.sap_code, description: item.description, quantity: qty });
+      await db('POST', 'usage_log', { sap_code: item.sap_code, description: item.description, quantity: qty, used_by: req.session.user?.email || null });
     }
     res.json({ success: true, item: updated[0] });
   } catch (e) {
@@ -188,6 +188,21 @@ app.get('/api/trends', async (req, res) => {
       }
     }
     res.json(Object.values(map).sort((a, b) => b.total_used - a.total_used));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// ── GET raw usage log rows (for trends Excel download) ───────────────────────
+app.get('/api/trends/raw', async (req, res) => {
+  try {
+    const { from, to } = req.query;
+    let endpoint = 'usage_log?select=sap_code,description,quantity,used_at,used_by&order=used_at.desc';
+    if (from) endpoint += `&used_at=gte.${encodeURIComponent(from)}`;
+    if (to)   endpoint += `&used_at=lte.${encodeURIComponent(to)}`;
+    const logs = await db('GET', endpoint);
+    res.json(logs);
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Database error' });

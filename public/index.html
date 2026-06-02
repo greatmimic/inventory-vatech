@@ -1068,6 +1068,11 @@
 // e.g. const API = 'https://your-app.onrender.com';
 const API = '';   // empty = same origin (works when served by Node.js)
 
+async function handleLogout() {
+  await fetch(`${API}/api/logout`, { method: 'POST' });
+  window.location.href = '/login.html';
+}
+
 // ── STATE ────────────────────────────────────────────────────────────────────
 let selectedCard = null;
 let searchTimeout = null;
@@ -1721,38 +1726,52 @@ function downloadStockList(format) {
 
 let lastTrendsData = [];
 
-function downloadTrends(format) {
-  if (!lastTrendsData.length) { showToast('Load trends data first', 'error'); return; }
-  const from  = document.getElementById('trendsFrom').value || 'all';
-  const to    = document.getElementById('trendsTo').value   || 'time';
+async function downloadTrends(format) {
+  const from = document.getElementById('trendsFrom').value;
+  const to   = document.getElementById('trendsTo').value;
+  if (!from || !to) { showToast('Select a date range first', 'error'); return; }
   const fname = `usage_${from}_to_${to}`;
+  try {
+    const fromISO = new Date(from).toISOString();
+    const toISO   = new Date(to + 'T23:59:59').toISOString();
+    const res  = await fetch(`${API}/api/trends/raw?from=${encodeURIComponent(fromISO)}&to=${encodeURIComponent(toISO)}`);
+    const data = await res.json();
+    if (!data.length) { showToast('No data in this range', 'error'); return; }
 
-  if (format === 'csv') {
-    const rows = [
-      ['SAP Code', 'Description', 'Units Used', 'Times Used', 'Current Stock'],
-      ...lastTrendsData.map(r => [
-        r.sap_code,
-        `"${r.description.replace(/"/g, '""')}"`,
-        r.total_used,
-        r.times_used,
-        r.current_stock ?? ''
-      ])
-    ];
-    const csv  = rows.map(r => r.join(',')).join('\n');
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    triggerDownload(blob, `${fname}.csv`);
-  } else {
-    const rows = lastTrendsData.map(r => `<tr>
-      <td>${r.sap_code}</td><td>${r.description}</td>
-      <td>${r.total_used}</td><td>${r.times_used}</td>
-      <td>${r.current_stock ?? ''}</td></tr>`).join('');
-    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
-      xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-      <head><meta charset="UTF-8"></head><body><table>
-      <thead><tr><th>SAP Code</th><th>Description</th><th>Units Used</th><th>Times Used</th><th>Current Stock</th></tr></thead>
-      <tbody>${rows}</tbody></table></body></html>`;
-    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
-    triggerDownload(blob, `${fname}.xls`);
+    const parseRow = r => {
+      const d = new Date(r.used_at);
+      return {
+        date: d.toLocaleDateString('en-CA'),
+        hour: d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+      };
+    };
+
+    if (format === 'csv') {
+      const rows = [
+        ['SAP Code', 'Description', 'Qty Used', 'Used By', 'Date', 'Hour'],
+        ...data.map(r => {
+          const { date, hour } = parseRow(r);
+          return [r.sap_code, `"${r.description.replace(/"/g, '""')}"`, r.quantity, r.used_by || '', date, hour];
+        })
+      ];
+      const csv  = rows.map(r => r.join(',')).join('\n');
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      triggerDownload(blob, `${fname}.csv`);
+    } else {
+      const rows = data.map(r => {
+        const { date, hour } = parseRow(r);
+        return `<tr><td>${r.sap_code}</td><td>${r.description}</td><td>${r.quantity}</td><td>${r.used_by || ''}</td><td>${date}</td><td>${hour}</td></tr>`;
+      }).join('');
+      const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+        xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <head><meta charset="UTF-8"></head><body><table>
+        <thead><tr><th>SAP Code</th><th>Description</th><th>Qty Used</th><th>Used By</th><th>Date</th><th>Hour</th></tr></thead>
+        <tbody>${rows}</tbody></table></body></html>`;
+      const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+      triggerDownload(blob, `${fname}.xls`);
+    }
+  } catch {
+    showToast('Failed to download', 'error');
   }
 }
 
