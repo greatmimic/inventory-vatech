@@ -1746,27 +1746,85 @@ async function downloadTrends(format) {
       };
     };
 
+    // Build per-user per-item aggregation from raw data
+    const userMap = new Map();
+    data.forEach(r => {
+      const key = `${r.sap_code}||${r.used_by || ''}`;
+      if (!userMap.has(key)) userMap.set(key, { sap_code: r.sap_code, description: r.description, used_by: r.used_by || '', total: 0 });
+      userMap.get(key).total += r.quantity;
+    });
+    const byUserRows = [...userMap.values()].sort((a, b) => a.sap_code.localeCompare(b.sap_code) || a.used_by.localeCompare(b.used_by));
+
+    // Build total per item code with current stock (reuse lastTrendsData if available)
+    const stockMap = new Map((lastTrendsData || []).map(r => [r.sap_code, r.current_stock]));
+    const itemMap = new Map();
+    data.forEach(r => {
+      if (!itemMap.has(r.sap_code)) itemMap.set(r.sap_code, { sap_code: r.sap_code, description: r.description, total: 0 });
+      itemMap.get(r.sap_code).total += r.quantity;
+    });
+    const byItemRows = [...itemMap.values()].sort((a, b) => b.total - a.total);
+
     if (format === 'csv') {
-      const rows = [
-        ['SAP Code', 'Description', 'Qty Used', 'Used By', 'Date', 'Hour'],
-        ...data.map(r => {
-          const { date, hour } = parseRow(r);
-          return [r.sap_code, `"${r.description.replace(/"/g, '""')}"`, r.quantity, r.used_by || '', date, hour];
-        })
-      ];
-      const csv  = rows.map(r => r.join(',')).join('\n');
-      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      const esc = s => `"${String(s).replace(/"/g, '""')}"`;
+      const lines = [];
+
+      lines.push('TOTAL PARTS USED PER ITEM CODE PER USER');
+      lines.push(['SAP Code', 'Description', 'Used By', 'Total Qty Used'].join(','));
+      byUserRows.forEach(r => lines.push([r.sap_code, esc(r.description), r.used_by, r.total].join(',')));
+      lines.push('');
+
+      lines.push('TOTAL USAGE & CURRENT STOCK BY ITEM CODE');
+      lines.push(['SAP Code', 'Description', 'Total Qty Used', 'Current Stock'].join(','));
+      byItemRows.forEach(r => {
+        const stock = stockMap.has(r.sap_code) ? (stockMap.get(r.sap_code) ?? '\u2014') : '\u2014';
+        lines.push([r.sap_code, esc(r.description), r.total, stock].join(','));
+      });
+      lines.push('');
+
+      lines.push('TRANSACTION LOG');
+      lines.push(['SAP Code', 'Description', 'Qty Used', 'Used By', 'Date', 'Hour'].join(','));
+      data.forEach(r => {
+        const { date, hour } = parseRow(r);
+        lines.push([r.sap_code, esc(r.description), r.quantity, r.used_by || '', date, hour].join(','));
+      });
+
+      const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
       triggerDownload(blob, `${fname}.csv`);
     } else {
-      const rows = data.map(r => {
-        const { date, hour } = parseRow(r);
-        return `<tr><td>${r.sap_code}</td><td>${r.description}</td><td>${r.quantity}</td><td>${r.used_by || ''}</td><td>${date}</td><td>${hour}</td></tr>`;
+      const th = s => `<th style="background:#1a1f2e;color:#00d4ff;font-family:monospace;padding:6px 10px;text-align:left;white-space:nowrap">${s}</th>`;
+      const td = s => `<td style="padding:5px 10px;font-family:monospace;font-size:12px;white-space:nowrap">${s}</td>`;
+      const sectionHeader = (title, cols) => `<tr><td colspan="${cols}" style="background:#0f1117;color:#ff6b35;font-family:monospace;font-size:13px;font-weight:bold;padding:10px 10px 4px">${title}</td></tr>`;
+      const spacer = cols => `<tr><td colspan="${cols}" style="padding:8px"></td></tr>`;
+
+      const userSection = byUserRows.map(r =>
+        `<tr>${td(r.sap_code)}${td(r.description)}${td(r.used_by)}${td(r.total)}</tr>`
+      ).join('');
+
+      const itemSection = byItemRows.map(r => {
+        const stock = stockMap.has(r.sap_code) ? (stockMap.get(r.sap_code) ?? '\u2014') : '\u2014';
+        return `<tr>${td(r.sap_code)}${td(r.description)}${td(r.total)}${td(stock)}</tr>`;
       }).join('');
+
+      const txnSection = data.map(r => {
+        const { date, hour } = parseRow(r);
+        return `<tr>${td(r.sap_code)}${td(r.description)}${td(r.quantity)}${td(r.used_by || '')}${td(date)}${td(hour)}</tr>`;
+      }).join('');
+
       const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
         xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
         <head><meta charset="UTF-8"></head><body><table>
-        <thead><tr><th>SAP Code</th><th>Description</th><th>Qty Used</th><th>Used By</th><th>Date</th><th>Hour</th></tr></thead>
-        <tbody>${rows}</tbody></table></body></html>`;
+          ${sectionHeader('Total Parts Used per Item Code per User', 4)}
+          <tr>${th('SAP Code')}${th('Description')}${th('Used By')}${th('Total Qty Used')}</tr>
+          ${userSection}
+          ${spacer(4)}
+          ${sectionHeader('Total Usage &amp; Current Stock by Item Code', 4)}
+          <tr>${th('SAP Code')}${th('Description')}${th('Total Qty Used')}${th('Current Stock')}</tr>
+          ${itemSection}
+          ${spacer(4)}
+          ${sectionHeader('Transaction Log', 6)}
+          <tr>${th('SAP Code')}${th('Description')}${th('Qty Used')}${th('Used By')}${th('Date')}${th('Hour')}</tr>
+          ${txnSection}
+        </table></body></html>`;
       const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
       triggerDownload(blob, `${fname}.xls`);
     }
