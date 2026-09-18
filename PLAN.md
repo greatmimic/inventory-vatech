@@ -132,47 +132,104 @@ The dev environment has to be a **second free project**.
 - Free projects pause after ~7 days idle; paused ones do not count against quota, so
   expect to resume it from the dashboard after a gap
 
+**Status as of 2026-09-18: it does not exist, and local dev points at production.**
+
+There is no `.env` file, and `server.js:11-12` falls back to the hardcoded prod ref
+`zuoqqbwzvessxepukqrb`. So `npm run dev` is Vite :5173 → proxy → Express :3001 → **prod**.
+Three things are missing, not one:
+
+1. The `vatech-inventory-dev` project itself. (Unverifiable from here — `.mcp.json` pins
+   `project_ref` to prod, which disables `list_projects`. Check the dashboard, and note a
+   project created earlier may simply be paused.)
+2. **Env loading.** `server.js` reads `process.env.SUPABASE_URL` correctly but nothing
+   populates it — no `dotenv` dependency, no `--env-file`. Node is v24, so `--env-file`
+   works natively with no new dependency:
+   `cross-env PORT=3001 node --env-file=.env server.js`
+3. **`.env` in `.gitignore`.** It currently lists only `node_modules` and `dist`. The repo
+   is public until the Cloudflare migration, so this must land *before* the file exists.
+
+This blocks the mutating half of phase 0: with dev pointed at prod there is currently no
+way to test Confirm Use, Add Stock, New Item, or ✕ delete at all.
+
 ---
 
 ## 4. Schema as it exists today
 
 ```
 inventory                          usage_log
-  sap_code     text                  id           bigint
+  sap_code     text  (PK)          id           integer (PK)
   description  text                  sap_code     text
-  quantity     "0"  <- string!        description  text
-  type         text (IOX/EOX)        quantity     1  <- number
+  quantity     text  <- confirmed    description  text
+  type         text (IOX/EOX)        quantity     integer
                                      used_at      timestamptz
                                      used_by      text
 ```
 
 Two things to fix during the phase-1 migration:
 
-- **`inventory.quantity` is not an integer.** PostgREST returns it quoted while
-  `usage_log.quantity` comes back bare, so it is `numeric` or `text`. Both are wrong for a
-  whole-unit count, and it is why the frontend calls `parseInt()` on every quantity.
-  Confirm which with `list_tables`.
+- **`inventory.quantity` is `text`.** Confirmed by `list_tables` on 2026-09-18 — not
+  `numeric`, the worse of the two candidates. `usage_log.quantity` is `integer`. Text is
+  wrong for a whole-unit count and it is why the frontend calls `parseInt()` on every
+  quantity. Cast to `integer` in the phase-1 migration.
 - **`usage_log.description` is denormalized** (copied at write time, not joined). For a
   ledger this is arguably correct — you want the description as it read at the time — but
   carry it into `stock_movements` deliberately, with a comment saying why.
 
 ---
 
-## 5. Open security finding
+## 5. Security finding — CONFIRMED, worse than first assessed
 
-The anon key committed in `server.js:9` can read **everything** — all 506 parts, all 2003
-usage records including employee email addresses — with no session at all. The Express
-login does nothing to protect the data.
+Resolved 2026-09-18 with reads only. The earlier note guessed "RLS is off or fully
+permissive" and recorded writes as untested. Both questions are now answered.
 
-That means RLS is off or fully permissive on these tables. Whether **writes** are also
-open is untested, because finding out means writing to production. `get_advisors` answers
-it with no writes.
+**RLS is enabled, but neutered.** Each table carries exactly one policy:
 
-Also: `SESSION_SECRET` has a committed fallback (`'vatech-inventory-dev-secret'`,
-`server.js:10`). If that env var is unset in production, anyone with repo access can forge
-session cookies.
+```
+"Allow all"  PERMISSIVE  roles={public}  cmd=ALL  qual=true  with_check=true
+```
 
-Both belong in phase 1.
+`cmd=ALL` with `with_check=true` covers INSERT, UPDATE and DELETE — not just reads.
+`has_table_privilege` confirms `anon` holds SELECT, INSERT, UPDATE **and DELETE** on both
+`inventory` and `usage_log`. **Writes are open.**
+
+`get_advisors(type:"security")` does *not* catch this — it returned only a leaked-password
+warning. The advisor flags *disabled* RLS, not RLS defeated by a permissive policy. Do not
+treat a clean advisor run as evidence here.
+
+**The exposure is live and public:**
+
+- The repo is public — `api.github.com/repos/greatmimic/inventory-vatech` returns 200
+  unauthenticated. Staying public until the Cloudflare migration (deliberate call).
+- The key at `server.js:12` (`sb_publishable_gsEe31Aqu23tnpO9ysCLxA_Y_tKLBWJ`) matches the
+  project's current publishable key, `disabled: false`. The legacy anon JWT is also still
+  enabled. It entered history at commit `4e9255f`, so **rotation is the only way out** —
+  going private later does not un-leak it, and public repos are scraped continuously.
+
+Net: anyone who finds the repo can read all 506 parts and 2017 usage rows including
+employee emails, and can run `DELETE FROM usage_log` — destroying the history #6 phase 2
+depends on, far more thoroughly than the ✕ button §3 warns about.
+
+Also unchanged: `SESSION_SECRET` has a committed fallback (`'vatech-inventory-dev-secret'`,
+`server.js:13`), in that same public history. If unset in production, session cookies are
+forgeable by anyone who read the repo.
+
+### Remediation — order matters
+
+Dropping the policy first takes production down, because `server.js` authenticates as
+`anon`. One piece of good news: nothing in `src/`, `index.html` or `login.html` references
+Supabase — the browser only calls `/api/*`, and `server.js` is the sole Supabase client.
+So `anon` needs **no** access at all; it can be revoked outright rather than carefully
+policed.
+
+1. Move `server.js` to a secret key (`sb_secret_...`) via env var, uncommitted. Server-side
+   only, bypasses RLS — keeps the app alive through step 2.
+2. **Then** replace `Allow all` with deny-by-default and revoke the `anon` grants.
+3. Rotate the exposed publishable key; disable the legacy anon JWT.
+4. Set `SESSION_SECRET` in the environment.
+5. Repo → private at the Cloudflare migration (phase 6, deferred by decision).
+
+Steps 1–2 are no longer phase-1 housekeeping. With the repo staying public, they are the
+only control standing between the open internet and a write to production.
 
 ---
 
