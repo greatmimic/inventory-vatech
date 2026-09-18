@@ -1,6 +1,9 @@
-const express = require('express');
-const path    = require('path');
-const session = require('express-session');
+import express from 'express';
+import path from 'path';
+import session from 'express-session';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -43,7 +46,7 @@ app.use((req, res, next) => {
   return res.redirect('/login.html');
 });
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'dist')));
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
 app.post('/api/login', async (req, res) => {
