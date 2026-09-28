@@ -6,13 +6,14 @@
   "main": "server.js",
   "scripts": {
     "dev": "concurrently -n api,web -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
-    "dev:api": "cross-env PORT=3001 node server.js",
+    "dev:api": "cross-env PORT=3001 node --env-file=.env server.js",
     "dev:web": "vite",
     "build": "vite build",
     "preview": "vite build && node server.js",
     "start": "node server.js"
   },
   "dependencies": {
+    "exceljs": "^4.4.0",
     "express": "^4.18.2",
     "express-session": "^1.19.0",
     "react": "^18.3.1",

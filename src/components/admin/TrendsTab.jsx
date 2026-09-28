@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Fragment } from 'react';
 import { api } from '../../api/client.js';
 import { useToast } from '../../hooks/useToast.jsx';
 import { isoDate } from '../../lib/format.js';
 import { downloadTrends } from '../../lib/export.js';
+import UsageEntries from './UsageEntries.jsx';
 
 const PRESETS = [
   { label: '7D',  days: 7 },
@@ -20,13 +21,16 @@ function rangeFor(days) {
   return { from: isoDate(from), to: isoDate(today) };
 }
 
-export default function TrendsTab() {
+export default function TrendsTab({ onStockChanged }) {
   const initial = rangeFor(7);
   const [from, setFrom]       = useState(initial.from);
   const [to, setTo]           = useState(initial.to);
   const [preset, setPreset]   = useState(7);
   const [data, setData]       = useState([]);
   const [status, setStatus]   = useState('idle');
+  const [exporting, setExporting] = useState(null);   // 'csv' | 'xlsx' while a download is being prepared
+  const [open, setOpen]       = useState(null);   // SAP code whose entries are shown
+  const [range, setRange]     = useState(null);   // { fromISO, toISO } of the loaded totals
   const showToast = useToast();
 
   const load = useCallback(async (f, t) => {
@@ -36,6 +40,7 @@ export default function TrendsTab() {
       const fromISO = new Date(f).toISOString();
       const toISO   = new Date(t + 'T23:59:59').toISOString();
       setData(await api.trends(fromISO, toISO));
+      setRange({ fromISO, toISO });
       setStatus('ready');
     } catch {
       setStatus('error');
@@ -63,9 +68,12 @@ export default function TrendsTab() {
     }
   }
 
-  function download(format) {
+  // Long ranges fetch every usage entry in batches, so the buttons show progress and can't be double-clicked.
+  async function download(format) {
     if (!from || !to) { showToast('Select a date range first', 'error'); return; }
-    downloadTrends({ from, to, stockRows: data, format, showToast });
+    setExporting(format);
+    try { await downloadTrends({ from, to, stockRows: data, format, showToast }); }
+    finally { setExporting(null); }
   }
 
   const totalUnits = data.reduce((s, r) => s + r.total_used, 0);
@@ -95,8 +103,10 @@ export default function TrendsTab() {
           </div>
           <button className="admin-submit" style={{ marginTop: '18px', height: '40px', padding: '0 16px', width: 'auto' }}
             onClick={() => load(from, to)}>Apply</button>
-          <button className="download-btn" style={{ marginTop: '18px' }} onClick={() => download('csv')} title="Download CSV">⬇ CSV</button>
-          <button className="download-btn" style={{ marginTop: '18px' }} onClick={() => download('xlsx')} title="Download Excel">⬇ Excel</button>
+          <button className="download-btn" style={{ marginTop: '18px' }} onClick={() => download('csv')} title="Download CSV"
+            disabled={!!exporting}>{exporting === 'csv' ? 'Preparing…' : '⬇ CSV'}</button>
+          <button className="download-btn" style={{ marginTop: '18px' }} onClick={() => download('xlsx')} title="Download Excel"
+            disabled={!!exporting}>{exporting === 'xlsx' ? 'Preparing…' : '⬇ Excel'}</button>
         </div>
       </div>
 
@@ -134,8 +144,10 @@ export default function TrendsTab() {
                 row.current_stock === 0 ? { color: 'var(--danger)' } :
                 row.current_stock <= 3 ? { color: 'var(--warn)' } : { color: 'var(--success)' };
               return (
-                <tr key={row.sap_code}>
-                  <td className="td-sap">{row.sap_code}</td>
+                <Fragment key={row.sap_code}>
+                <tr className={`trend-row${open === row.sap_code ? ' open' : ''}`} title="Show entries"
+                  onClick={() => setOpen(cur => cur === row.sap_code ? null : row.sap_code)}>
+                  <td className="td-sap"><span className="trend-caret">{open === row.sap_code ? '▾' : '▸'}</span>{row.sap_code}</td>
                   <td className="td-desc">
                     {row.description}
                     <div className="trend-bar-wrap">
@@ -149,10 +161,19 @@ export default function TrendsTab() {
                     {row.current_stock ?? '—'}
                   </td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <button onClick={() => remove(row.sap_code)} title="Remove all log entries for this item"
+                    <button onClick={e => { e.stopPropagation(); remove(row.sap_code); }} title="Remove all log entries for this item"
                       style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--muted)', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '11px', fontFamily: 'var(--mono)' }}>✕</button>
                   </td>
                 </tr>
+                {open === row.sap_code && range && (
+                  <tr className="trend-entries-row">
+                    <td colSpan="6" className="trend-entries-cell">
+                      <UsageEntries code={row.sap_code} fromISO={range.fromISO} toISO={range.toISO}
+                        stock={row.current_stock} onChanged={() => { load(from, to); onStockChanged?.(); }} />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               );
             })}
           </tbody>

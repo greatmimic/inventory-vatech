@@ -8,6 +8,7 @@ export default function NewItemTab({ onDone }) {
   const [desc, setDesc] = useState('');
   const [type, setType] = useState('');
   const [qty, setQty]   = useState('');
+  const [loc, setLoc]   = useState('');
   const descRef = useRef(null);
   const qtyRef  = useRef(null);
   const showToast = useToast();
@@ -17,9 +18,10 @@ export default function NewItemTab({ onDone }) {
     const d = desc.trim();
     if (!c || !d) { showToast('SAP code and description required', 'error'); return; }
     try {
-      await api.newItem({ sap_code: c, description: d, quantity: parseInt(qty) || 0, type: type.trim() });
-      showToast(`✓ Created ${c}`, 'success');
-      setCode(''); setDesc(''); setType(''); setQty('');
+      const locations = loc.split(',').map(s => s.trim()).filter(Boolean);
+      const res = await api.newItem({ sap_code: c, description: d, quantity: parseInt(qty) || 0, type: type.trim(), locations });
+      showToast(`✓ Created ${c}${res.locations.length ? ` at ${res.locations.join(', ')}` : ''}`, 'success');
+      setCode(''); setDesc(''); setType(''); setQty(''); setLoc('');
       onDone();
     } catch (err) {
       showToast(err.data?.error || 'Connection error', 'error');
@@ -47,6 +49,11 @@ export default function NewItemTab({ onDone }) {
           <option value="IOX">IOX</option>
           <option value="EOX">EOX</option>
         </select>
+      </div>
+      <div className="form-group">
+        <label className="form-label">Location</label>
+        <input className="form-input" type="text" placeholder="Optional, e.g. 5D or 5D, WH" spellCheck="false" autoComplete="off"
+          value={loc} onChange={e => setLoc(e.target.value)} />
       </div>
       <QtyField ref={qtyRef} label="Initial Quantity" value={qty} onChange={setQty} onEnter={submit} min={0} />
       <button className="admin-submit" onClick={submit}>CREATE ITEM</button>

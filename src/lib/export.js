@@ -1,8 +1,9 @@
 import { api } from '../api/client.js';
 import { parseUsedAt } from './format.js';
+import { sortSlots, slotName, entryDate, CATEGORIES } from './firmware.js';
 
-// NOTE: these still emit an HTML table labelled .xls, carried over from v1.
-// Phase 4 replaces this with ExcelJS and real multi-sheet workbooks.
+// NOTE: the stock list export still emits an HTML table labelled .xls, carried over from v1.
+// Phase 4 moves it onto buildWorkbook below (already used by the Versions/Changelog and trends exports).
 
 function triggerDownload(blob, filename, showToast) {
   const url = URL.createObjectURL(blob);
@@ -41,6 +42,117 @@ export function downloadStockList(items, format, showToast) {
   }
 }
 
+// Real .xlsx workbooks (PLAN.md §6), with ExcelJS loaded only when an Excel download is clicked.
+// Each sheet gets a bold, frozen header row with filters; cells stay text so versions keep their dots,
+// except numbers (usage quantities), which stay numeric so they can be summed.
+async function buildWorkbook(sheets) {
+  const { default: ExcelJS } = await import('exceljs');
+  const wb = new ExcelJS.Workbook();
+  for (const { name, columns, rows } of sheets) {
+    const ws = wb.addWorksheet(name, { views: [{ state: 'frozen', ySplit: 1 }] });
+    ws.addRow(columns).font = { bold: true };
+    rows.forEach(r => ws.addRow(r.map(v => typeof v === 'number' ? v : String(v))));
+    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: columns.length } };
+    columns.forEach((c, i) => {
+      ws.getColumn(i + 1).width = Math.min(60, rows.reduce((w, r) => Math.max(w, String(r[i]).length + 2), c.length + 4));
+    });
+  }
+  return new Blob([await wb.xlsx.writeBuffer()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+
+// The month-end stock report for the parts management team, laid out like their sheet:
+// three blank rows, then SAP Code / Descriptions / date header, every part sorted by code,
+// Calibri 11 with thin borders. Description cells have no right edge; the quantity cell supplies it.
+export async function downloadMonthlyInventory(items, showToast) {
+  const now   = new Date();
+  const month = now.toLocaleString('en-US', { month: 'long' });
+  try {
+    const { default: ExcelJS } = await import('exceljs');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Sheet1', {
+      properties: { defaultRowHeight: 14.45 },
+      pageSetup: { margins: { left: 0.7, right: 0.7, top: 0.75, bottom: 0.75, header: 0.3, footer: 0.3 } }
+    });
+    ws.getColumn(1).width = 10.140625;
+    ws.getColumn(2).width = 92.85546875;
+
+    const font = { name: 'Calibri', size: 11, family: 2, scheme: 'minor', color: { theme: 1 } };
+    const thin = { style: 'thin', color: { indexed: 64 } };
+    const box  = { left: thin, right: thin, top: thin, bottom: thin };
+    const desc = { left: thin, top: thin, bottom: thin };
+    const addRow = (values, r) => {
+      const row = ws.getRow(r);
+      row.values = values;
+      [box, desc, box].forEach((border, i) => Object.assign(row.getCell(i + 1), { font, border }));
+    };
+
+    addRow(['SAP Code', 'Descriptions', `${now.getMonth() + 1}.${now.getDate()}.${now.getFullYear()}`], 4);
+    [...items]
+      .sort((a, b) => a.sap_code < b.sap_code ? -1 : a.sap_code > b.sap_code ? 1 : 0)
+      .forEach((item, i) => addRow([item.sap_code, item.description, Number(item.quantity)], 5 + i));
+
+    const blob = new Blob([await wb.xlsx.writeBuffer()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    triggerDownload(blob, `${month} ${now.getFullYear()} Inventory.xlsx`, showToast);
+  } catch {
+    showToast('Failed to download', 'error');
+  }
+}
+
+// One table as CSV or as a single-sheet workbook.
+async function downloadTable({ file, sheet, columns, rows }, format, showToast) {
+  if (format === 'csv') {
+    const csv = [columns, ...rows].map(r => r.map(csvCell).join(',')).join('\n');
+    triggerDownload(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }), `${file}.csv`, showToast);
+    return;
+  }
+  try {
+    triggerDownload(await buildWorkbook([{ name: sheet, columns, rows }]), `${file}.xlsx`, showToast);
+  } catch {
+    showToast('Failed to download', 'error');
+  }
+}
+
+const categoryLabel = (key) => CATEGORIES.find(k => k.key === key)?.label || '';
+
+// Every version of the listed units: the current one, then earlier ones.
+export function downloadFirmwareLog(units, format, showToast) {
+  const rows = units.flatMap(u => sortSlots(u.slots).flatMap(s => s.history.map((h, i) => [
+    u.name, categoryLabel(u.category), slotName(s), h.version, entryDate(s.history, i), i === 0 ? 'Current' : 'Previous', h.changed_by || ''
+  ])));
+  downloadTable({
+    file: 'versions_history', sheet: 'Versions', rows,
+    columns: ['Unit', 'Category', 'Component', 'Version', 'Date', 'Status', 'Changed By']
+  }, format, showToast);
+}
+
+// The changelog feed exactly as filtered on screen, one row per change.
+export function downloadChangeFeed(changes, format, showToast) {
+  const rows = changes.map(c => [
+    c.when, c.unit.name, categoryLabel(c.unit.category), slotName(c), c.from || '', c.version, c.changed_by || ''
+  ]);
+  downloadTable({
+    file: 'versions_changelog', sheet: 'Changelog', rows,
+    columns: ['Date', 'Unit', 'Category', 'Component', 'From', 'To', 'Changed By']
+  }, format, showToast);
+}
+
+const STATUS_LABEL = { order: 'Order now', watch: 'Watch' };
+
+// Parts at or below maintain, with how many to order to get back above it for another month.
+export function downloadOrderList(parts, showToast) {
+  const date = new Date().toISOString().slice(0, 10);
+  const rows = parts.map(p => [
+    p.sap_code, p.description, p.type || '', STATUS_LABEL[p.status] || p.status, p.stock, p.on_order, p.avg ?? '', p.basement, p.maintain, p.order_qty
+  ]);
+  downloadTable({
+    file: `order_list_${date}`, sheet: 'Order List', rows,
+    columns: ['SAP Code', 'Description', 'Type', 'Status', 'In Stock', 'On Order', 'Use / Month', 'Basement', 'Maintain', 'Order Qty']
+  }, 'xlsx', showToast);
+}
+
+// Shown in the Usage by User grid where a user took none of a part, so it can't be mistaken for a logged 0.
+const NOT_TAKEN = 'Not Taken';
+
 export async function downloadTrends({ from, to, stockRows, format, showToast }) {
   const fname = `usage_${from}_to_${to}`;
   try {
@@ -70,7 +182,7 @@ export async function downloadTrends({ from, to, stockRows, format, showToast })
       const lines = [];
       lines.push('TOTAL PARTS USED PER ITEM CODE PER USER');
       lines.push(['SAP Code', 'Description', ...users].join(','));
-      pivotRows.forEach(r => lines.push([r.sap_code, csvCell(r.description), ...users.map(u => r.byUser[u] || 0)].join(',')));
+      pivotRows.forEach(r => lines.push([r.sap_code, csvCell(r.description), ...users.map(u => r.byUser[u] || NOT_TAKEN)].join(',')));
       lines.push('');
       lines.push('TOTAL USAGE & CURRENT STOCK BY ITEM CODE');
       lines.push(['SAP Code', 'Description', 'Total Qty Used', 'Current Stock'].join(','));
@@ -86,30 +198,28 @@ export async function downloadTrends({ from, to, stockRows, format, showToast })
       return;
     }
 
-    const cols = Math.max(2 + users.length, 6);
-    const th = (s) => `<th style="background:#1a1f2e;color:#00d4ff;font-family:monospace;padding:6px 10px;text-align:left;white-space:nowrap">${s}</th>`;
-    const td = (s, right) => `<td style="padding:5px 10px;font-family:monospace;font-size:12px;white-space:nowrap${right ? ';text-align:right' : ''}">${s}</td>`;
-    const header = (title) => `<tr><td colspan="${cols}" style="background:#0f1117;color:#ff6b35;font-family:monospace;font-size:13px;font-weight:bold;padding:10px 10px 4px">${title}</td></tr>`;
-    const spacer = `<tr><td colspan="${cols}" style="padding:8px"></td></tr>`;
-
-    const html = `${XLS_HEAD}<table>
-      ${header('Total Parts Used per Item Code per User')}
-      <tr>${th('SAP Code')}${th('Description')}${users.map(u => th(u)).join('')}</tr>
-      ${pivotRows.map(r => `<tr>${td(r.sap_code)}${td(r.description)}${users.map(u => td(r.byUser[u] || 0, true)).join('')}</tr>`).join('')}
-      ${spacer}
-      ${header('Total Usage &amp; Current Stock by Item Code')}
-      <tr>${th('SAP Code')}${th('Description')}${th('Total Qty Used')}${th('Current Stock')}</tr>
-      ${byItemRows.map(r => `<tr>${td(r.sap_code)}${td(r.description)}${td(r.total, true)}${td(stockFor(r.sap_code), true)}</tr>`).join('')}
-      ${spacer}
-      ${header('Transaction Log')}
-      <tr>${th('SAP Code')}${th('Description')}${th('Qty Used')}${th('Used By')}${th('Date')}${th('Hour')}</tr>
-      ${data.map(r => {
-        const { date, hour } = parseUsedAt(r.used_at);
-        return `<tr>${td(r.sap_code)}${td(r.description)}${td(r.quantity, true)}${td(r.used_by || '')}${td(date)}${td(hour)}</tr>`;
-      }).join('')}
-    </table></body></html>`;
-
-    triggerDownload(new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' }), `${fname}.xls`, showToast);
+    // One sheet per table, named for what it answers.
+    const blob = await buildWorkbook([
+      {
+        name: 'Usage by User',
+        columns: ['SAP Code', 'Description', ...users],
+        rows: pivotRows.map(r => [r.sap_code, r.description, ...users.map(u => r.byUser[u] || NOT_TAKEN)])
+      },
+      {
+        name: 'Usage & Stock',
+        columns: ['SAP Code', 'Description', 'Total Qty Used', 'Current Stock'],
+        rows: byItemRows.map(r => [r.sap_code, r.description, r.total, stockFor(r.sap_code)])
+      },
+      {
+        name: 'Transaction Log',
+        columns: ['SAP Code', 'Description', 'Qty Used', 'Used By', 'Date', 'Hour'],
+        rows: data.map(r => {
+          const { date, hour } = parseUsedAt(r.used_at);
+          return [r.sap_code, r.description, r.quantity, r.used_by || '', date, hour];
+        })
+      }
+    ]);
+    triggerDownload(blob, `${fname}.xlsx`, showToast);
   } catch {
     showToast('Failed to download', 'error');
   }

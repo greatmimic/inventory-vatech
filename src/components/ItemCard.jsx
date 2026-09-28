@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { qtyClass, splitHighlight } from '../lib/format.js';
+import LocationTags from './LocationTags.jsx';
 
 function Highlighted({ text, q }) {
   return splitHighlight(text, q).map((part, i) =>
@@ -9,7 +10,7 @@ function Highlighted({ text, q }) {
   );
 }
 
-export default function ItemCard({ item, query, open, onToggle, onDeduct }) {
+export default function ItemCard({ item, query, open, onToggle, onDeduct, onOpenMap }) {
   const [qty, setQty]   = useState(1);
   const [busy, setBusy] = useState(false);
   const qc = qtyClass(item.quantity);
@@ -35,6 +36,7 @@ export default function ItemCard({ item, query, open, onToggle, onDeduct }) {
         <div>
           <div className="item-sap"><Highlighted text={item.sap_code} q={query} /></div>
           <div className="item-desc"><Highlighted text={item.description} q={query} /></div>
+          <LocationTags locations={item.locations} onOpenMap={onOpenMap} />
         </div>
         <div style={{ textAlign: 'right' }}>
           <div className={`item-qty ${qc}`}>{item.quantity}</div>

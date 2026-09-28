@@ -1,14 +1,18 @@
-import { useState, useEffect, useMemo } from 'react';
+import { Fragment, useState, useEffect, useMemo } from 'react';
 import { api } from '../../api/client.js';
 import { useToast } from '../../hooks/useToast.jsx';
 import { qtyClass } from '../../lib/format.js';
-import { downloadStockList } from '../../lib/export.js';
+import { downloadStockList, downloadMonthlyInventory } from '../../lib/export.js';
+import LocationTags from '../LocationTags.jsx';
+import LocationEditor from './LocationEditor.jsx';
+import { sortLocations, compareLocations } from '../../lib/locations.js';
 
 const COLUMNS = [
   { key: 'sap_code',    label: 'SAP Code' },
   { key: 'type',        label: 'Type' },
   { key: 'quantity',    label: 'Qty' },
-  { key: 'description', label: 'Description' }
+  { key: 'description', label: 'Description' },
+  { key: 'location',    label: 'Location' }
 ];
 
 export default function StockListTab() {
@@ -19,6 +23,7 @@ export default function StockListTab() {
   const [typeFilter, setTypeFilter]     = useState('all');
   const [sortKey, setSortKey] = useState('sap_code');
   const [sortAsc, setSortAsc] = useState(true);
+  const [editing, setEditing] = useState(null);   // SAP code whose locations are open for editing
   const showToast = useToast();
 
   useEffect(() => {
@@ -41,7 +46,8 @@ export default function StockListTab() {
     const filtered = all.filter(item => {
       const matchText = !q ||
         item.sap_code.toLowerCase().includes(q) ||
-        item.description.toLowerCase().includes(q);
+        item.description.toLowerCase().includes(q) ||
+        item.locations.some(l => l.toLowerCase() === q);
       const matchStatus =
         statusFilter === 'all'   ? true :
         statusFilter === 'ok'    ? item.quantity > 3 :
@@ -52,6 +58,12 @@ export default function StockListTab() {
     });
 
     return filtered.sort((a, b) => {
+      // Location sorts by first shelf in bay order; parts with none go last.
+      if (sortKey === 'location') {
+        const [la, lb] = [sortLocations(a.locations)[0], sortLocations(b.locations)[0]];
+        const d = !la || !lb ? (la ? -1 : lb ? 1 : 0) : compareLocations(la, lb);
+        return sortAsc ? d : -d;
+      }
       let va = a[sortKey] ?? '', vb = b[sortKey] ?? '';
       if (sortKey === 'quantity') { va = Number(va); vb = Number(vb); }
       else { va = String(va).toLowerCase(); vb = String(vb).toLowerCase(); }
@@ -69,9 +81,19 @@ export default function StockListTab() {
     else { setSortKey(key); setSortAsc(true); }
   }
 
+  function setLocations(code, locations) {
+    setAll(items => items.map(i => i.sap_code === code ? { ...i, locations } : i));
+  }
+
   function download(format) {
     if (!all.length) { showToast('Load stock list first', 'error'); return; }
     downloadStockList(visible, format, showToast);
+  }
+
+  // The month-end report always covers every part, whatever the filters show.
+  function monthly() {
+    if (!all.length) { showToast('Load stock list first', 'error'); return; }
+    downloadMonthlyInventory(all, showToast);
   }
 
   return (
@@ -92,6 +114,7 @@ export default function StockListTab() {
         </select>
         <button className="download-btn" onClick={() => download('csv')} title="Download CSV">⬇ CSV</button>
         <button className="download-btn" onClick={() => download('xlsx')} title="Download Excel">⬇ Excel</button>
+        <button className="download-btn" onClick={monthly} title="Every part, in the parts management team's month-end format">⬇ Monthly</button>
       </div>
 
       <div className="stock-summary">
@@ -114,20 +137,34 @@ export default function StockListTab() {
             </thead>
             <tbody>
               {visible.length === 0 ? (
-                <tr><td colSpan="4" style={{ textAlign: 'center', padding: '24px', color: 'var(--muted)', fontFamily: 'var(--mono)', fontSize: '12px' }}>
+                <tr><td colSpan="5" style={{ textAlign: 'center', padding: '24px', color: 'var(--muted)', fontFamily: 'var(--mono)', fontSize: '12px' }}>
                   No items match filter
                 </td></tr>
               ) : visible.map(item => {
                 const type = (item.type || '').toString().trim().toUpperCase();
+                const open = editing === item.sap_code;
                 return (
-                  <tr key={item.sap_code}>
+                  <Fragment key={item.sap_code}>
+                  <tr className={open ? 'loc-editing' : ''}>
                     <td className="td-sap">{item.sap_code}</td>
                     <td>{type
                       ? <span className={`type-badge ${type}`}>{type}</span>
                       : <span style={{ color: 'var(--muted)', fontSize: '11px' }}>—</span>}</td>
                     <td className={`td-qty ${qtyClass(item.quantity)}`}>{item.quantity}</td>
                     <td className="td-desc">{item.description}</td>
+                    <td className="td-loc">
+                      {item.locations.length ? <LocationTags locations={item.locations} />
+                        : <span style={{ color: 'var(--muted)', fontSize: '11px' }}>—</span>}
+                      <button type="button" className={`loc-edit-btn${open ? ' active' : ''}`}
+                        onClick={() => setEditing(open ? null : item.sap_code)}>{open ? 'Done' : 'Edit'}</button>
+                    </td>
                   </tr>
+                  {open && (
+                    <tr className="loc-edit-tr"><td colSpan="5" className="loc-edit-cell">
+                      <LocationEditor sapCode={item.sap_code} onChange={locs => setLocations(item.sap_code, locs)} />
+                    </td></tr>
+                  )}
+                  </Fragment>
                 );
               })}
             </tbody>

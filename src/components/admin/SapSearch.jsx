@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { qtyClass, qtyStyle } from '../../lib/format.js';
+import LocationTags from '../LocationTags.jsx';
 
 export default function SapSearch({ value, onChange, onSelect, selected, cache, onNext }) {
   const [matches, setMatches]     = useState([]);
@@ -72,6 +73,7 @@ export default function SapSearch({ value, onChange, onSelect, selected, cache, 
         {selected && (
           <>✓ {selected.sap_code} — {selected.description}&nbsp;
             <span style={qtyStyle(selected.quantity)}>({selected.quantity} in stock)</span>
+            <LocationTags locations={selected.locations} />
           </>
         )}
       </div>

@@ -2,6 +2,11 @@ import { StrictMode, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { api } from './api/client.js';
 import './styles/login.css';
+import logoLight from './assets/vatech-america-logo.png';
+import logoDark from './assets/vatech-america-logo-dark.png';
+
+// The saved theme is applied to <html> by an inline script in login.html before first paint.
+const logo = document.documentElement.dataset.theme === 'light' ? logoLight : logoDark;
 
 function Login() {
   const [email, setEmail]       = useState('');
@@ -24,7 +29,10 @@ function Login() {
 
   return (
     <div className="card">
-      <div className="logo">VATECH <span>/ INVENTORY</span></div>
+      <div className="logo">
+        <img className="logo-img" src={logo} alt="Vatech America" />
+        <span>INVENTORY</span>
+      </div>
       <form onSubmit={handleSubmit}>
         <label htmlFor="email">Email</label>
         <input id="email" type="email" autoComplete="email" required placeholder="you@vatech.com"
