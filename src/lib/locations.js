@@ -10,9 +10,9 @@ export const BINS = {};
 // Bays 1-9 run down the left wall (bay 9 at the top); levels A-D sit side by side.
 for (let bay = 1; bay <= 9; bay++)
   LEVELS.forEach((l, i) => { BINS[bay + l] = [1 + i, 9 + (9 - bay) * 3, 1, 3]; });
-// Bays 11-16 run along the top wall; levels A-D are stacked.
-for (let bay = 11; bay <= 16; bay++)
-  LEVELS.forEach((l, i) => { BINS[bay + l] = [9 + (bay - 11) * 3, 1 + i, 3, 1]; });
+// Bays 10-15 run along the top wall; levels A-D are stacked.
+for (let bay = 10; bay <= 15; bay++)
+  LEVELS.forEach((l, i) => { BINS[bay + l] = [9 + (bay - 10) * 3, 1 + i, 3, 1]; });
 
 // Labelled areas that are not part locations.
 export const ZONES = [

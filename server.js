@@ -146,16 +146,16 @@ app.get('/api/locations', async (req, res) => {
 });
 
 // ── Part location editing (admin) — every change goes to part_location_log ───
-// Accepted codes: bay 1-16 + level A-D ("5D"), "WH", "IO Bin". Returns the canonical spelling or null.
+// Accepted codes: bay 1-15 + level A-D ("5D"), "WH", "IO Bin". Returns the canonical spelling or null.
 function normalizeLocation(input) {
   const s = String(input || '').trim().replace(/\s+/g, ' ');
   const m = /^(\d{1,2}) ?([a-d])$/i.exec(s);
-  if (m && +m[1] >= 1 && +m[1] <= 16) return `${+m[1]}${m[2].toUpperCase()}`;
+  if (m && +m[1] >= 1 && +m[1] <= 15) return `${+m[1]}${m[2].toUpperCase()}`;
   if (/^wh$/i.test(s)) return 'WH';
   if (/^io ?bin$/i.test(s)) return 'IO Bin';
   return null;
 }
-const BAD_LOCATION = 'Location must be a bay and level (1A to 16D), WH or IO Bin';
+const BAD_LOCATION = 'Location must be a bay and level (1A to 15D), WH or IO Bin';
 const cleanNote = (note) => String(note || '').trim() || null;
 const logLocation = (req, sap_code, location, action, note) => db('POST', 'part_location_log',
   { sap_code, location, action, note, changed_by: req.session.user?.email || null });

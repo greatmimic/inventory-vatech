@@ -4,7 +4,7 @@ const place = ([col, row, w, h]) => ({ gridColumn: `${col} / span ${w}`, gridRow
 
 // Schematic of the QA room. `hits` are highlighted, `selected` is outlined, and bins
 // missing from `stocked` (when given) are dimmed. `offMap` lists codes that exist in the
-// data but have no place on the drawing (bay 10, IO Bin). `compact` drops the labels for
+// data but have no place on the drawing (IO Bin). `compact` drops the labels for
 // the pop-up mini map.
 export default function FloorMap({ hits = [], selected, stocked, offMap = [], onPick, compact = false }) {
   const hit = new Set(hits);

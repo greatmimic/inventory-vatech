@@ -2,7 +2,7 @@ import { Fragment, useState, useEffect, useMemo } from 'react';
 import { api } from '../api/client.js';
 import { useToast } from '../hooks/useToast.jsx';
 import { FW_COMPONENTS, CATEGORIES, previewRows, componentsFor, isUnitDriver, isPairing, slotName, sortSlots, fmtDate, entryDate, withDrivers } from '../lib/firmware.js';
-import { downloadFirmwareLog, downloadChangeFeed } from '../lib/export.js';
+import { downloadCurrentVersions, downloadChangeFeed } from '../lib/export.js';
 
 const RANGES = [['30', '30D'], ['90', '90D'], ['365', '1Y'], ['all', 'ALL']];
 
@@ -137,7 +137,7 @@ function UnitTable({ groups, columns }) {
 }
 
 // Every recorded version that replaced an earlier one (first recorded versions show only in a unit's history).
-// Newest first; undated entries go last. EzAlign/EzEval changes are listed once, under their Driver item.
+// Newest first; undated entries go last. EzAlign/EzEval changes are listed once, under their Utility item.
 function changesOf(units) {
   const out = [];
   for (const u of units) for (const s of u.slots) if (u.virtual || !isUnitDriver(s.component)) s.history.slice(0, -1).forEach((h, i) => out.push({
@@ -207,8 +207,8 @@ export default function FirmwareView({ changelog }) {
     const hit = (name) => name.toLowerCase().includes(q);
     return units.filter(u => category === 'all' || u.category === category).flatMap(u => {
       if (hit(u.name)) return [u];
-      // A driver also matches on the units it lists, keeping only those rows.
-      const slots = u.category === 'driver' ? u.slots.filter(s => hit(s.label)) : [];
+      // A Utility item also matches on the units it lists, keeping only those rows.
+      const slots = u.virtual ? u.slots.filter(s => hit(s.label)) : [];
       return slots.length ? [{ ...u, slots }] : [];
     });
   }, [units, text, category]);
@@ -227,7 +227,7 @@ export default function FirmwareView({ changelog }) {
   const feed = component === 'all' ? ranged : ranged.filter(c => c.component === component);
   const feedComponents = FW_COMPONENTS.filter(k => ranged.some(c => c.component === k.key));
   const drillUnit = changelog && units.find(u => u.id === drillId);
-  // The EzAlign/EzEval Driver items only regroup unit data, so they aren't counted or listed as units.
+  // The EzAlign/EzEval Utility items only regroup unit data, so they aren't counted or listed as units.
   const real = units.filter(u => !u.virtual);
 
   function chooseLayout(l) {
@@ -239,7 +239,7 @@ export default function FirmwareView({ changelog }) {
 
   const download = (format) => changelog
     ? downloadChangeFeed(feed, format, showToast)
-    : downloadFirmwareLog(visible.filter(u => !u.virtual), format, showToast);
+    : downloadCurrentVersions(visible, format, showToast);
   const canDownload = changelog ? feed.length > 0 : visible.length > 0;
 
   const summary = changelog
@@ -274,16 +274,16 @@ export default function FirmwareView({ changelog }) {
           </div>
         )}
         <button className="download-btn" onClick={() => download('csv')}
-          disabled={!canDownload} title={changelog ? 'Download these changes as CSV' : 'Download version history as CSV'}>⬇ CSV</button>
+          disabled={!canDownload} title={changelog ? 'Download these changes as CSV' : 'Download current versions as CSV'}>⬇ CSV</button>
         <button className="download-btn" onClick={() => download('xlsx')}
-          disabled={!canDownload} title={changelog ? 'Download these changes as Excel' : 'Download version history as Excel'}>⬇ Excel</button>
+          disabled={!canDownload} title={changelog ? 'Download these changes as Excel' : 'Download current versions as Excel'}>⬇ Excel</button>
       </div>
 
       <div className="fw-category-filter" role="group" aria-label="Unit category">
         {[{ key: 'all', short: 'All' }, ...CATEGORIES].map(c => (
           <button key={c.key} className={`preset-btn${category === c.key ? ' active' : ''}`} aria-pressed={category === c.key}
             data-cat={c.key} onClick={() => setCategory(c.key)}>
-            {c.short.toUpperCase()} <span className="fw-group-count">{c.key === 'all' ? real.length : real.filter(u => u.category === c.key).length}</span>
+            {c.short.toUpperCase()} <span className="fw-group-count">{c.key === 'all' ? real.length : units.filter(u => u.category === c.key).length}</span>
           </button>
         ))}
       </div>
@@ -318,7 +318,7 @@ export default function FirmwareView({ changelog }) {
         </>
       ) : groups.map(g => (
         <section key={g.key} className="fw-group">
-          <h3 className="fw-group-title" data-cat={g.key}>{g.label} <span className="fw-group-count">{g.units.filter(u => !u.virtual).length}</span></h3>
+          <h3 className="fw-group-title" data-cat={g.key}>{g.label} <span className="fw-group-count">{g.units.length}</span></h3>
           <div className="fw-cards">
             {g.units.map(u => <UnitCard key={u.id} unit={u} open={openId === u.id} onToggle={() => toggle(u.id)} />)}
           </div>

@@ -20,6 +20,7 @@
     --cat-iox:   #00e676;
     --cat-sw:    #ffb300;
     --cat-drv:   #f472b6;
+    --cat-util:  #fb923c;
     --mono:      'IBM Plex Mono', monospace;
     --sans:      'IBM Plex Sans', sans-serif;
     color-scheme: dark;
@@ -48,6 +49,7 @@
     --cat-iox:   #0a8a4a;
     --cat-sw:    #a86b00;
     --cat-drv:   #b8327a;
+    --cat-util:  #c2410c;
     color-scheme: light;
   }
 
@@ -951,6 +953,7 @@
   [data-cat="portable"] { --cat: var(--cat-iox); }
   [data-cat="software"] { --cat: var(--cat-sw); }
   [data-cat="driver"]   { --cat: var(--cat-drv); }
+  [data-cat="utility"]  { --cat: var(--cat-util); }
   .fw-cat {
     flex-shrink: 0; padding: 1px 6px; border-radius: 3px; white-space: nowrap;
     font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
